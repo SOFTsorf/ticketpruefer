@@ -186,14 +186,9 @@
     function sortData() {
         const now = Date.now();
         busData.sort((a, b) => {
-            // Ausgefallene Busse gelten NICHT als "sofort" für Boarding-Zwecke, 
-            // sollen aber zeitlich korrekt eingeordnet werden.
-            
-            // Ein Bus ist "Sofort-relevant", wenn er NICHT ausfällt UND (sofort-markiert ODER Zeit <= 0)
             const aIsSofort = !a.cancelled && (a.sofortSince || (a.time - now <= 0));
             const bIsSofort = !b.cancelled && (b.sofortSince || (b.time - now <= 0));
 
-            // Sofort immer vor Nicht-Sofort (aber Ausfälle bleiben in der normalen Zeit-Sortierung)
             if (aIsSofort && !bIsSofort) return -1; 
             if (!aIsSofort && bIsSofort) return 1;
             
@@ -210,22 +205,20 @@
             busData = data.departures.map(dep => {
                 const existing = busData.find(b => b.tripId === dep.tripId);
                 
-                // Hinweise sammeln (z.B. "Halt verlegt")
                 let hints = "";
                 if(dep.remarks && dep.remarks.length > 0) {
                     const txt = dep.remarks.filter(r => r.type === 'status' || r.type === 'warning').map(r => r.text).join(' +++ ');
                     if(txt) hints = " +++ " + txt;
                 }
 
-                // Verspätung berechnen (in Sekunden)
                 const delaySec = dep.delay || 0;
 
                 return {
                     tripId: dep.tripId || (dep.line.name + dep.direction + dep.when),
                     line: dep.line.name,
-                    dest: dep.direction + hints, // Hinweise ans Ziel anhängen
+                    dest: dep.direction + hints, 
                     time: new Date(dep.when || dep.plannedWhen),
-                    cancelled: dep.cancelled || false, // API Flag für Ausfall
+                    cancelled: dep.cancelled || false, 
                     delay: delaySec,
                     sofortSince: existing ? existing.sofortSince : null
                 };
@@ -240,13 +233,10 @@
         const now = Date.now();
         
         busData = busData.filter(bus => {
-            // Ausfälle bleiben maximal 60 Sekunden nach Abfahrtszeit sichtbar
-            // Normale Busse bleiben maximal 20 Sekunden im "Sofort"-Modus
             const timeDiff = bus.time - now;
             
             if (timeDiff <= 0) {
                 if (bus.cancelled) {
-                     // Ausfälle etwas länger zeigen, damit man es merkt
                     return timeDiff > -60000; 
                 } else {
                     if (!bus.sofortSince) bus.sofortSince = now;
@@ -272,7 +262,20 @@
         
         const list = busData.slice(0, Math.max(1, maxRows));
         
-        // ID enthält jetzt auch cancelled status, damit neu gerendert wird bei Änderung
+        // Logik für "Keine Fahrten mehr"
+        if (list.length === 0 && stationID) {
+            if (container.dataset.ids === "none") return;
+            container.dataset.ids = "none";
+            container.innerHTML = `
+                <div class="row">
+                    <div class="line-cell"></div>
+                    <div class="dest-cell">Keine Fahrten mehr für heute.</div>
+                    <div class="time-cell"></div>
+                </div>
+            `;
+            return;
+        }
+
         const ids = list.map(b => b.tripId + b.cancelled + b.delay).join('|') + maxRows;
         
         if (container.dataset.ids === ids) return;
@@ -281,7 +284,6 @@
         container.innerHTML = '';
         list.forEach((bus, i) => {
             const row = document.createElement('div');
-            // Klasse 'cancelled' hinzufügen für rote Farbe
             row.className = `row ${bus.cancelled ? 'cancelled' : ''}`;
             
             row.innerHTML = `
@@ -306,6 +308,7 @@
     function updateClocks() {
         const now = Date.now();
         const rows = document.querySelectorAll('.time-cell');
+        if (busData.length === 0) return; // Nichts zu tun wenn keine Daten
         
         busData.slice(0, rows.length).forEach((bus, i) => {
             const el = document.getElementById(`t-${i}`);
@@ -314,24 +317,19 @@
             let html = '';
 
             if (bus.cancelled) {
-                // FALL 1: AUSFALL
                 html = '<span class="cancelled-msg">Entfällt</span>';
             } else {
-                // FALL 2: NORMALER BUS
                 const diffMin = Math.floor((bus.time - now) / 60000);
                 const isSofort = (bus.sofortSince || diffMin <= 0);
 
                 if (isSofort) {
                     html = '<span class="sofort">sofort</span>';
                 } else {
-                    // Prüfen ob Verspätung vorliegt (> 60 sek)
-                    // delay ist in Sekunden. 
                     let delayHtml = '';
                     if (bus.delay > 60) {
                         const delayMin = Math.floor(bus.delay / 60);
                         delayHtml = `<span class="delay-info">+ ${delayMin}</span>`;
                     } else if (bus.delay < -60) {
-                         // Zu früh (eher selten)
                          delayHtml = `<span class="delay-info">${Math.ceil(bus.delay/60)}</span>`;
                     }
 
