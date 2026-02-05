@@ -3,58 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DFI Christuskirche LIVE</title>
+    <title>DFI Christuskirche STABLE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
     
     <style>
-        :root {
-            --bg: #000000;
-            --led: #ff9d00;
-        }
+        :root { --bg: #000; --led: #ff9d00; --gray: #222; }
         body {
-            background-color: var(--bg);
-            color: #ffffff;
+            background: var(--bg);
+            color: #fff;
             font-family: 'Doto', sans-serif;
             margin: 0;
-            font-variation-settings: "ROND" 100; /* Punkt-Matrix-Optik */
-            height: 100vh;
+            font-variation-settings: "ROND" 100;
             display: flex;
             flex-direction: column;
+            height: 100vh;
         }
         .header {
             display: flex;
             justify-content: space-between;
             padding: 20px;
-            border-bottom: 3px solid var(--led);
+            border-bottom: 4px solid var(--led);
             background: #111;
         }
-        .station { font-size: 2rem; line-height: 1; }
-        #clock { color: var(--led); font-size: 2rem; }
+        .station { font-size: 1.8rem; line-height: 1.1; }
+        #clock { color: var(--led); font-size: 1.8rem; }
         
         .labels {
             display: grid;
-            grid-template-columns: 100px 1fr 150px;
-            padding: 10px 20px;
-            background: #222;
-            color: #666;
-            font-size: 0.8rem;
+            grid-template-columns: 80px 1fr 120px;
+            padding: 8px 20px;
+            background: var(--gray);
+            color: #777;
+            font-size: 0.9rem;
         }
-        #board { flex-grow: 1; }
+        #board { flex-grow: 1; overflow-y: auto; }
         .row {
             display: grid;
-            grid-template-columns: 100px 1fr 150px;
-            padding: 15px 20px;
-            border-bottom: 1px solid #1a1a1a;
-            font-size: 2.2rem;
+            grid-template-columns: 80px 1fr 120px;
+            padding: 12px 20px;
+            border-bottom: 1px solid #111;
+            font-size: 2rem;
             align-items: center;
         }
         .line { color: var(--led); }
         .dest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
         .eta { text-align: right; }
-        .sofort { animation: blink 1s steps(2, start) infinite; color: var(--led); }
-        @keyframes blink { to { visibility: hidden; } }
+        .blink { animation: flash 1s steps(2, start) infinite; color: var(--led); }
+        @keyframes flash { to { visibility: hidden; } }
         .status { padding: 40px; text-align: center; color: var(--led); font-size: 1.2rem; }
     </style>
 </head>
@@ -64,21 +61,28 @@
         <div id="clock">--:--:--</div>
     </div>
     <div class="labels">
-        <span>LINIE</span><span>ZIEL</span><span style="text-align:right">ABFAHRT</span>
+        <span>LINE</span><span>DEST</span><span style="text-align:right">DEPART</span>
     </div>
-    <div id="board"><div class="status">Lade Echtzeitdaten...</div></div>
+    <div id="board"><div class="status">VERBINDE MIT VRM...</div></div>
 
     <script>
+        // Wir nutzen "AllOrigins" als stabilen Proxy für die DB-API
+        const stopId = "de:07111:400";
+        const url = `https://v5.db.transport.rest/stops/${stopId}/departures?duration=60&results=12`;
+
         function updateClock() {
             document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE');
         }
 
-        async function loadDepartures() {
+        async function fetchDepartures() {
             try {
-                // Wir rufen jetzt unsere eigene API-Datei auf, um CORS zu umgehen
-                const response = await fetch('/api/departures');
-                const data = await response.json();
-                
+                // Wir erzwingen ein Cache-Update durch den Timestamp (?cachebust=...)
+                const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url + '&t=' + Date.now())}`);
+                const wrapper = await response.json();
+                const data = JSON.parse(wrapper.contents);
+
+                if (!data || data.length === 0) throw new Error();
+
                 const board = document.getElementById('board');
                 board.innerHTML = "";
                 
@@ -87,21 +91,29 @@
                     const row = document.createElement('div');
                     row.className = 'row';
                     
-                    let timeStr = diff <= 0 ? '<span class="sofort">sofort</span>' : diff + ' min';
-                    if (diff > 59) timeStr = new Date(dep.when).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    let timeStr = diff <= 0 ? '<span class="blink">sofort</span>' : diff + ' MIN';
+                    if (diff > 45) {
+                        const d = new Date(dep.when || dep.plannedWhen);
+                        timeStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+                    }
 
-                    row.innerHTML = `<div class="line">${dep.line.name}</div><div class="dest">${dep.direction}</div><div class="eta">${timeStr}</div>`;
+                    row.innerHTML = `
+                        <div class="line">${dep.line?.name || '??'}</div>
+                        <div class="dest">${(dep.direction || 'UNBEKANNT').toUpperCase()}</div>
+                        <div class="eta">${timeStr}</div>
+                    `;
                     board.appendChild(row);
                 });
             } catch (e) {
-                document.getElementById('board').innerHTML = '<div class="status" style="color:red">Server-Fehler. Versuche erneut...</div>';
+                console.error(e);
+                document.getElementById('board').innerHTML = '<div class="status" style="color:red">DATEN-FEHLER. VERBINDUNG WIRD ERNEUERT...</div>';
             }
         }
 
         setInterval(updateClock, 1000);
-        setInterval(loadDepartures, 20000);
+        setInterval(fetchDepartures, 25000); // Alle 25 Sek neue Daten
         updateClock();
-        loadDepartures();
+        fetchDepartures();
     </script>
 </body>
 </html>
