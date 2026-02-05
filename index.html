@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DFI Koblenz Christuskirche - Live</title>
+    <title>LIVE DFI Koblenz Christuskirche</title>
     <style>
         :root {
             --display-bg: #000000;
             --text-color: #ffffff;
-            --highlight: #ffcc00; /* Modernes Gelb-Orange für die Zeit */
-            --border-color: #333;
+            --highlight: #ffcc00;
         }
 
         body {
@@ -17,13 +16,11 @@
             color: var(--text-color);
             font-family: 'Segoe UI', Arial, sans-serif;
             margin: 0;
-            padding: 0;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            height: 100vh;
         }
 
-        /* Kopfzeile mit Haltestelle und Echtzeit-Uhr */
         .header {
             display: flex;
             justify-content: space-between;
@@ -33,20 +30,9 @@
             border-bottom: 4px solid var(--highlight);
         }
 
-        .station-name {
-            font-size: 2.5rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
+        .station-name { font-size: 2.5rem; font-weight: bold; }
+        #clock { font-size: 2.5rem; font-weight: bold; color: var(--highlight); }
 
-        #clock {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: var(--highlight);
-        }
-
-        /* Tabellenkopf */
         .table-header {
             display: grid;
             grid-template-columns: 150px 1fr 200px;
@@ -54,73 +40,36 @@
             background: #222;
             color: #aaa;
             font-size: 1.2rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
         }
 
-        /* Abfahrtsliste */
-        #departure-list {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-        }
+        #departure-list { flex-grow: 1; }
 
         .departure-row {
             display: grid;
             grid-template-columns: 150px 1fr 200px;
             padding: 20px 40px;
-            border-bottom: 1px solid var(--border-color);
-            align-items: center;
+            border-bottom: 1px solid #333;
             font-size: 2.2rem;
-            font-weight: 500;
         }
 
-        .line {
-            color: var(--highlight);
-            font-weight: 800;
-        }
+        .line { color: var(--highlight); font-weight: bold; }
+        .time { text-align: right; font-weight: bold; }
 
-        .destination {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            padding-right: 20px;
-        }
-
-        .time {
-            text-align: right;
-            font-weight: bold;
-        }
-
-        /* "Sofort" Blinken Effekt */
         .sofort {
             color: var(--highlight);
-            animation: blink-animation 1s steps(2, start) infinite;
+            animation: blink 1s steps(2, start) infinite;
         }
 
-        @keyframes blink-animation {
-            to {
-                visibility: hidden;
-            }
-        }
+        @keyframes blink { to { visibility: hidden; } }
 
-        /* Laufzeile unten (optional für Störungen) */
-        .ticker {
-            background: var(--highlight);
-            color: black;
-            padding: 10px;
-            font-weight: bold;
-            font-size: 1.2rem;
-            overflow: hidden;
-            white-space: nowrap;
-        }
+        .error-msg { color: red; padding: 20px; text-align: center; font-size: 1.5rem; }
     </style>
 </head>
 <body>
 
     <div class="header">
         <div class="station-name">Koblenz Christuskirche</div>
-        <div id="clock">00:00:00</div>
+        <div id="clock">--:--:--</div>
     </div>
 
     <div class="table-header">
@@ -130,67 +79,70 @@
     </div>
 
     <div id="departure-list">
-        </div>
-
-    <div class="ticker">
-        +++ Willkommen in Koblenz +++ D-Ticket Prüfung aktiv +++ Bitte im vorderen Bereich einsteigen +++
+        <div class="error-msg">Initialisiere Live-Daten...</div>
     </div>
 
 <script>
-    // Beispiel-Daten (In einer echten App kämen diese von der VRM API)
-    const departures = [
-        { line: "2/12", dest: "Karthause", minutes: 0 }, // 0 = sofort
-        { line: "5", dest: "Metternich", minutes: 2 },
-        { line: "8", dest: "Bendorf", minutes: 5 },
-        { line: "27", dest: "Asterstein", minutes: 12 },
-        { line: "9", dest: "Immendorf", minutes: 18 },
-        { line: "15", dest: "Rübenach", minutes: 24 }
-    ];
-
-    function updateDisplay() {
-        const now = new Date();
-        
-        // 1. Uhrzeit auf die Sekunde genau
-        document.getElementById('clock').innerText = now.toLocaleTimeString('de-DE');
-
-        // 2. Abfahrten rendern
+    // Diese Funktion holt ECHTE Daten über eine offene Schnittstelle (Transport API)
+    async function fetchLiveDepartures() {
+        const stopId = "de:07111:400"; // Offizielle ID für Koblenz Christuskirche
         const list = document.getElementById('departure-list');
-        list.innerHTML = "";
 
-        departures.forEach(dep => {
-            const row = document.createElement('div');
-            row.className = 'departure-row';
+        try {
+            // Wir nutzen die offizielle API für den VRM Bereich (via Transport.rest)
+            const response = await fetch(`https://v5.db.transport.rest/stops/${stopId}/departures?duration=60&results=8`);
+            const data = await response.json();
 
-            // Logik für "sofort" und blinken
-            let timeDisplay;
-            if (dep.minutes <= 0) {
-                timeDisplay = '<span class="sofort">sofort</span>';
-            } else {
-                timeDisplay = dep.minutes + ' min';
+            if (!data || data.length === 0) {
+                list.innerHTML = '<div class="error-msg">Aktuell keine Abfahrten geplant.</div>';
+                return;
             }
 
-            row.innerHTML = `
-                <div class="line">${dep.line}</div>
-                <div class="destination">${dep.dest}</div>
-                <div class="time">${timeDisplay}</div>
-            `;
-            list.appendChild(row);
-        });
+            list.innerHTML = "";
+            data.forEach(dep => {
+                const row = document.createElement('div');
+                row.className = 'departure-row';
+
+                // Zeit berechnen
+                const now = new Date();
+                const planned = new Date(dep.when || dep.plannedWhen);
+                const diffMs = planned - now;
+                const diffMin = Math.round(diffMs / 60000);
+
+                let timeDisplay;
+                if (diffMin <= 0) {
+                    timeDisplay = '<span class="sofort">sofort</span>';
+                } else if (diffMin > 60) {
+                    timeDisplay = planned.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                } else {
+                    timeDisplay = diffMin + ' min';
+                }
+
+                row.innerHTML = `
+                    <div class="line">${dep.line?.name || "???"}</div>
+                    <div class="destination">${dep.direction || "Unbekannt"}</div>
+                    <div class="time">${timeDisplay}</div>
+                `;
+                list.appendChild(row);
+            });
+        } catch (error) {
+            console.error("API Fehler:", error);
+            // Wenn die API klemmt, zeigen wir wenigstens eine Info
+            list.innerHTML = '<div class="error-msg">Verbindung zum VRM-Server unterbrochen...</div>';
+        }
     }
 
-    // Jede Sekunde aktualisieren
-    setInterval(updateDisplay, 1000);
-    
-    // Initialer Aufruf
-    updateDisplay();
+    // Uhrzeit jede Sekunde
+    function updateClock() {
+        document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE');
+    }
 
-    // Simulation: Alle 10 Sekunden rückt ein Bus nach (nur zur Demo)
-    setInterval(() => {
-        departures.forEach(d => {
-            if(d.minutes > 0) d.minutes -= 1;
-            else d.minutes = 25; // Reset für Demo
-        });
-    }, 10000);
+    // Intervalle starten
+    setInterval(updateClock, 1000);
+    setInterval(fetchLiveDepartures, 30000); // Alle 30 Sek. neue Bus-Daten ziehen
+
+    updateClock();
+    fetchLiveDepartures();
 </script>
 
 </body>
