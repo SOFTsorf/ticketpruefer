@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DFI Pro - Smart Sort</title>
+    <title>DFI Realism</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,12 +11,14 @@
 
     <style>
         :root {
-            --led: #ffaa00;
-            --led-dim: #cc8800;
-            --led-alert: #ff3333;
-            --bg: #000;
+            --led: #ffaa00;         /* Hauptfarbe Orange */
+            --led-dim: #995500;     /* Gedimmte Farbe für Linien */
+            --led-alert: #ff3333;   /* Rot für Ausfälle */
+            --bg: #0d0d0d;          /* Fast Schwarz für Hintergrund */
+            --grid-color: #000;     /* Farbe des Gitters zwischen LEDs */
+            
             --col-line: 18vw; 
-            --col-time: 28vw;
+            --col-time: 25vw;
         }
 
         body, html {
@@ -24,61 +26,88 @@
             background: var(--bg);
             color: var(--led);
             font-family: 'Doto', sans-serif;
-            font-variation-settings: "ROND" 100;
+            font-variation-settings: "ROND" 100; /* Eckige Pixel */
             overflow: hidden;
             width: 100vw; height: 100vh;
+            cursor: none; /* Maus verstecken für Kiosk-Feeling */
+        }
+
+        /* --- SUB-PIXEL STRUKTUR (Das Raster) --- */
+        body::after {
+            content: " ";
+            position: fixed; inset: 0; z-index: 9999;
+            /* Ein feines Punkt-Raster simulieren */
+            background-image: 
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
+                linear-gradient(var(--grid-color) 1px, transparent 1px);
+            background-size: 4px 4px; /* Größe der einzelnen "LEDs" */
+            background-color: rgba(0,0,0,0.1);
+            pointer-events: none; /* Klicks gehen durch */
+        }
+
+        /* --- LED GLOW EFFEKT --- */
+        #display-screen {
+            text-shadow: 0 0 4px rgba(255, 170, 0, 0.4); /* Leichter Schein */
         }
 
         /* SETUP SCREEN */
         #setup-screen {
-            position: fixed; inset: 0; background: #111; z-index: 2000;
+            position: fixed; inset: 0; background: #111; z-index: 10000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            font-family: 'Inter', sans-serif; color: white;
+            font-family: 'Inter', sans-serif; color: white; cursor: auto;
         }
         .input-group { margin: 15px; width: 80%; max-width: 400px; }
         .input-group input { 
             width: 100%; padding: 12px; background: #222; border: 1px solid #444;
-            color: white; border-radius: 8px; font-size: 1.1rem; box-sizing: border-box;
-            outline: none;
+            color: white; border-radius: 4px; font-size: 1.1rem; box-sizing: border-box; outline: none;
         }
-        .input-group input:focus { border-color: var(--led); }
         #start-btn { 
             padding: 12px 30px; background: var(--led); border: none; 
-            border-radius: 8px; font-weight: bold; cursor: pointer; color: black; 
-            font-size: 1rem; transition: transform 0.1s;
+            border-radius: 4px; font-weight: bold; cursor: pointer; color: black; 
+            font-size: 1rem; text-transform: uppercase; letter-spacing: 1px;
         }
-        #start-btn:active { transform: scale(0.95); }
 
-        /* MAIN DISPLAY */
+        /* MAIN LAYOUT */
         #display-screen { 
             display: none; flex-direction: column; height: 100vh; width: 100vw; 
-            box-sizing: border-box; padding: 0 3vw;
+            box-sizing: border-box; padding: 0 2vw;
         }
 
-        /* VOLLBILD BUTTON */
-        #fs-icon { 
-            position: fixed; top: 15px; right: 15px; z-index: 100; 
-            color: #444; cursor: pointer; opacity: 0.6;
-            background: rgba(255,255,255,0.05); padding: 5px; border-radius: 5px;
+        /* HEADER MIT UHR */
+        .header-area { 
+            flex: 0 0 auto; 
+            padding: 2vh 0 1vh 0; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; /* Unten bündig */
+            border-bottom: 2px solid var(--led-dim);
+            margin-bottom: 0.5vh;
         }
-        #fs-icon:hover { color: var(--led); opacity: 1; }
-
-        /* KOPFZEILE */
-        .header-area { flex: 0 0 auto; padding: 2vh 0 1vh 0; }
 
         .station-name { 
-            font-family: 'Inter', sans-serif; 
-            font-size: clamp(24px, 5vh, 50px); 
-            color: #eee; font-weight: 700; margin: 0 0 0.5vh 0; 
+            font-size: clamp(20px, 4.5vh, 50px); 
+            color: var(--led); 
+            margin: 0; 
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            max-width: 75%;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
+
+        .header-clock {
+            font-size: clamp(20px, 4.5vh, 50px);
+            color: var(--led);
+            font-variant-numeric: tabular-nums;
+        }
+        .blink-colon { animation: blink 1s steps(2, start) infinite; }
 
         .labels {
             display: grid; grid-template-columns: var(--col-line) 1fr var(--col-time);
             font-family: 'Inter', sans-serif; 
-            font-size: clamp(14px, 2.5vh, 26px); 
-            color: #666;
-            text-transform: uppercase; border-bottom: 2px solid #222; padding-bottom: 0.8vh;
+            font-size: clamp(10px, 2vh, 20px); 
+            color: #888; text-transform: uppercase; 
+            padding-bottom: 0.5vh; margin-top: 0.5vh;
+            letter-spacing: 1px;
         }
         .labels span:last-child { text-align: right; }
 
@@ -87,13 +116,13 @@
 
         .row {
             flex: 1; display: grid; grid-template-columns: var(--col-line) 1fr var(--col-time);
-            align-items: center; border-bottom: 1px solid #111;
-            font-size: 5.5vh; min-height: 0; 
-            line-height: 1;
+            align-items: center; 
+            border-bottom: 1px solid #1a1a1a;
+            font-size: 5.5vh; min-height: 0; line-height: 1;
         }
 
-        .line-cell { font-weight: 900; white-space: nowrap; overflow: hidden; color: var(--led-dim); }
-        .dest-cell { overflow: hidden; white-space: nowrap; display: flex; position: relative; margin-right: 15px; }
+        .line-cell { color: var(--led); white-space: nowrap; overflow: hidden; letter-spacing: 1px;}
+        .dest-cell { overflow: hidden; white-space: nowrap; display: flex; position: relative; margin-right: 10px; color: var(--led); }
         .marquee-content { display: inline-block; will-change: transform; padding-right: 2em; }
 
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
@@ -102,42 +131,51 @@
         .time-cell { 
             text-align: right; font-variant-numeric: tabular-nums; 
             display: flex; justify-content: flex-end; align-items: baseline; gap: 1vw;
+            color: var(--led);
         }
         
         .delay-info { font-size: 0.5em; color: var(--led-alert); font-family: 'Inter', sans-serif; font-weight: bold; }
-        .is-cancelled { text-decoration: line-through; color: var(--led-alert); }
-        .is-cancelled .delay-info { display: none; }
+        .is-cancelled { text-decoration: line-through; color: var(--led-alert) !important; text-shadow: none; opacity: 0.7; }
+        .is-cancelled .line-cell, .is-cancelled .dest-cell, .is-cancelled .time-cell { color: var(--led-alert); }
 
-        .sofort { text-transform: lowercase; font-size: 0.85em; animation: blink 1s steps(2, start) infinite; color: var(--led); }
+        .sofort { animation: blink 1s steps(2, start) infinite; }
         @keyframes blink { 50% { opacity: 0; } }
+
+        /* FULLSCREEN ICON (Hidden in production feel) */
+        #fs-icon { 
+            position: fixed; bottom: 10px; right: 10px; z-index: 20000; 
+            color: #333; cursor: pointer; opacity: 0.3; padding: 10px;
+        }
+        #fs-icon:hover { opacity: 1; color: var(--led); }
+
     </style>
 </head>
 <body>
 
     <div id="setup-screen">
-        <h2 style="margin-bottom: 20px;">DFI Simulator</h2>
-        <div class="input-group"><input type="text" id="city-input" placeholder="Stadt (z.B. Berlin)"></div>
-        <div class="input-group"><input type="text" id="stop-input" placeholder="Haltestelle (z.B. Alexanderplatz)"></div>
-        <button id="start-btn">Anzeige starten</button>
+        <h2 style="margin-bottom: 20px; letter-spacing: 2px;">SYSTEM SETUP</h2>
+        <div class="input-group"><input type="text" id="city-input" placeholder="Stadt (z.B. Hamburg)"></div>
+        <div class="input-group"><input type="text" id="stop-input" placeholder="Haltestelle (z.B. Rathaus)"></div>
+        <button id="start-btn">INITIALISIEREN</button>
     </div>
 
     <div id="display-screen">
-        <div id="fs-icon" onclick="toggleFullscreen()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-        </div>
         <div class="header-area">
-            <p class="station-name" id="station-title">Lade...</p>
-            <div class="labels"><span>Linie</span><span>Ziel</span><span>Abfahrt</span></div>
+            <div class="station-name" id="station-title">BOOTING...</div>
+            <div class="header-clock" id="main-clock">00<span class="blink-colon">:</span>00</div>
         </div>
+        <div class="labels"><span>Linie</span><span>Ziel</span><span>Abfahrt</span></div>
         <div id="matrix"></div>
     </div>
+    
+    <div id="fs-icon" onclick="toggleFullscreen()">[FS]</div>
 
 <script>
     let stationID = null;
     let busData = [];
     let wakeLock = null;
 
-    // Vollbild Toggle
+    // --- FULLSCREEN ---
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => console.log(err));
@@ -146,114 +184,116 @@
         }
     }
 
-    document.addEventListener('fullscreenchange', () => {
-        const btn = document.getElementById('fs-icon');
-        btn.style.display = document.fullscreenElement ? 'none' : 'block';
-        setTimeout(renderFrame, 200); // Layout neu berechnen
-    });
-
-    async function requestWakeLock() {
-        if ('wakeLock' in navigator) {
-            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
-        }
-    }
-
-    // Start Button
+    // --- SETUP LOGIC ---
     document.getElementById('start-btn').onclick = async () => {
         const city = document.getElementById('city-input').value;
         const stop = document.getElementById('stop-input').value;
-        
-        if(!city || !stop) return alert("Bitte beide Felder ausfüllen.");
+        if(!city || !stop) return alert("Eingabe fehlt.");
 
-        const query = `${city} ${stop}`;
         const btn = document.getElementById('start-btn');
-        btn.innerText = "Suche...";
+        btn.innerText = "VERBINDE...";
 
         try {
-            const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(query)}&results=1`);
+            const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(city + " " + stop)}&results=1`);
             const data = await res.json();
             
             if(!data[0]) {
-                btn.innerText = "Anzeige starten";
-                return alert("Haltestelle nicht gefunden!");
+                btn.innerText = "INITIALISIEREN";
+                return alert("Ort nicht gefunden.");
             }
 
             stationID = data[0].id;
-            document.getElementById('station-title').innerText = data[0].name;
+            // Name etwas bereinigen (Ortsnamen entfernen für cleaner Look wenn möglich)
+            let cleanName = data[0].name.replace(city + ", ", "").replace(city + " ", "");
+            document.getElementById('station-title').innerText = cleanName;
+            
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('display-screen').style.display = 'flex';
 
-            requestWakeLock();
-            startEngine();
+            // Wake Lock für Always On
+            if ('wakeLock' in navigator) {
+                try { await navigator.wakeLock.request('screen'); } catch (err) {}
+            }
+
+            // Start Animation ("Pixel Test")
+            runBootSequence();
+            
         } catch(e) { 
-            btn.innerText = "Anzeige starten";
-            alert("Verbindungsfehler!"); 
+            btn.innerText = "FEHLER";
+            setTimeout(() => btn.innerText = "INITIALISIEREN", 2000);
         }
     };
 
+    function runBootSequence() {
+        // Simuliert das Hochfahren einer Anzeige (Alle Pixel an)
+        const matrix = document.getElementById('matrix');
+        matrix.innerHTML = '<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:3vh; color:var(--led-dim);">SYSTEM TEST...</div>';
+        
+        setTimeout(() => {
+            startEngine();
+        }, 1500);
+    }
+
     function startEngine() {
         updateData();
-        setInterval(updateData, 30000); // Daten alle 30s holen
-        setInterval(processLogic, 1000); // UI jede Sekunde aktualisieren
+        setInterval(updateData, 30000);
+        setInterval(tick, 1000); // 1 Sekunde Takt für Uhr und Logic
         window.addEventListener('resize', renderFrame);
     }
 
+    // --- DATA LOGIC ---
     async function updateData() {
         if(!stationID) return;
         try {
-            // duration=60 holt Daten für die nächsten 60 Minuten
             const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=20&duration=60`);
             const data = await res.json();
-            const now = Date.now();
-
+            
             busData = data.departures.map(dep => {
-                // TripID oder Fallback generieren, um Busse wiederzuerkennen
                 const uniqueId = dep.tripId || (dep.line.name + dep.direction + dep.plannedWhen);
+                // Suche existierenden Bus um "SofortSince" zu behalten
                 const existing = busData.find(b => b.tripId === uniqueId);
-
-                // Zeiten berechnen
+                
                 const plannedTime = new Date(dep.plannedWhen).getTime();
                 const realTime = dep.when ? new Date(dep.when).getTime() : plannedTime;
-                
-                // Verspätung berechnen (in Minuten)
-                const delayMs = realTime - plannedTime;
-                const delayMin = Math.floor(delayMs / 60000);
+                const delayMin = Math.floor((realTime - plannedTime) / 60000);
 
                 return {
                     tripId: uniqueId,
                     line: dep.line.name,
                     dest: dep.direction,
-                    time: realTime,     // Für Sortierung nutzen wir die echte Zeit
-                    delay: delayMin,    // Verspätung speichern
+                    time: realTime,
+                    delay: delayMin,
                     cancelled: dep.cancelled || false,
                     sofortSince: existing ? existing.sofortSince : null
                 };
             });
-
-            // WICHTIG: Sofort sortieren nach echter Abfahrtszeit
-            sortBuses();
+            
+            busData.sort((a, b) => a.time - b.time); // Sort by Time
             renderFrame();
-        } catch(e) { console.error("Update Error", e); }
+        } catch(e) {}
     }
 
-    function sortBuses() {
-        // Sortiert aufsteigend nach Zeit (kleinste Zeit zuerst = Sofort zuerst)
-        busData.sort((a, b) => a.time - b.time);
-    }
+    // --- RENDER LOGIC ---
+    function tick() {
+        const now = new Date();
+        
+        // 1. Uhr Update
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const clockEl = document.getElementById('main-clock');
+        // HTML neu setzen erzwingt Blink-Sync, aber wir machen es smoother:
+        clockEl.innerHTML = `${hours}<span class="blink-colon">:</span>${minutes}`;
 
-    function processLogic() {
-        const now = Date.now();
+        // 2. Bus Logic (wegnehmen wenn zu alt)
+        const nowTs = now.getTime();
         let needsRedraw = false;
         
-        // Alte Busse entfernen (20 Sek nachdem sie "abgefahren" sind)
         busData = busData.filter(bus => {
-            const timeDiff = bus.time - now;
-            
-            // Wenn Zeit <= 0 (Sofort)
+            const timeDiff = bus.time - nowTs;
             if (timeDiff <= 0) {
-                if (!bus.sofortSince) bus.sofortSince = now;
-                // Nach 20 Sekunden entfernen
-                if ((now - bus.sofortSince) > 20000) { 
+                if (!bus.sofortSince) bus.sofortSince = nowTs;
+                // Zeige Bus noch 15 Sekunden an, während er "da" ist
+                if ((nowTs - bus.sofortSince) > 15000) { 
                     needsRedraw = true; 
                     return false; 
                 }
@@ -261,38 +301,36 @@
             return true;
         });
 
-        if (needsRedraw) renderFrame();
-        updateClocks();
+        if(needsRedraw) renderFrame();
+        
+        // 3. Zeiten aktualisieren (Minuten runterzählen)
+        updateTimeTexts(nowTs);
     }
 
     function renderFrame() {
         const container = document.getElementById('matrix');
         const headerArea = document.querySelector('.header-area');
-        if(!container || !headerArea) return;
+        if(!container) return;
 
-        // Dynamische Zeilenberechnung
-        const availableHeight = window.innerHeight - headerArea.offsetHeight - 20;
-        // Etwas kompaktere Zeilen für mehr Info
-        const rowHeightTarget = window.innerHeight * 0.11; 
-        const maxRows = Math.max(1, Math.floor(availableHeight / rowHeightTarget));
+        // Platzberechnung
+        const availableHeight = window.innerHeight - headerArea.offsetHeight - 40;
+        const rowHeight = window.innerHeight * 0.12; 
+        const maxRows = Math.max(1, Math.floor(availableHeight / rowHeight));
 
         const list = busData.slice(0, maxRows);
-        
-        // Checken ob sich die Struktur geändert hat (Zeilen IDs)
-        const currentIds = list.map(b => b.tripId).join('|') + maxRows;
-        
-        if (container.dataset.ids !== currentIds) {
-            container.dataset.ids = currentIds;
-            container.innerHTML = ''; // Reset nur wenn sich Bus-Reihenfolge ändert
+        const currentSignature = list.map(b => b.tripId + (b.cancelled?'c':'')).join('|');
 
-            list.forEach((bus, i) => {
+        if (container.dataset.sig !== currentSignature) {
+            container.dataset.sig = currentSignature;
+            container.innerHTML = ''; 
+
+            list.forEach(bus => {
                 const row = document.createElement('div');
                 row.className = 'row' + (bus.cancelled ? ' is-cancelled' : '');
                 
-                // Delay String bauen
                 let delayStr = '';
-                if(bus.delay > 0) delayStr = `<span class="delay-info">+${bus.delay}</span>`;
-                else if(bus.delay < -1) delayStr = `<span class="delay-info">${bus.delay}</span>`;
+                if(!bus.cancelled && bus.delay > 1) delayStr = `<span class="delay-info">+${bus.delay}</span>`;
+                else if(!bus.cancelled && bus.delay < -1) delayStr = `<span class="delay-info">${bus.delay}</span>`;
 
                 row.innerHTML = `
                     <div class="line-cell">${bus.line}</div>
@@ -304,47 +342,43 @@
                 `;
                 container.appendChild(row);
 
-                // Marquee Check
+                // Marquee Setup
                 setTimeout(() => {
                     const m = document.getElementById(`m-${bus.tripId}`);
                     const c = document.getElementById(`c-${bus.tripId}`);
                     if (m && c && m.offsetWidth > c.offsetWidth) {
-                        // Inhalt verdoppeln für nahtloses Scrollen
                         m.innerHTML = `${bus.dest} &nbsp;&nbsp;&nbsp;&nbsp; ${bus.dest} &nbsp;&nbsp;&nbsp;&nbsp;`;
                         m.classList.add('animate-scroll');
                     }
                 }, 50);
             });
         }
-        
-        updateClocks();
+        updateTimeTexts(Date.now());
     }
 
-    function updateClocks() {
-        const now = Date.now();
-        
-        // Wir iterieren nur über die DOM Elemente, um Performance zu sparen
-        busData.forEach((bus) => {
+    function updateTimeTexts(nowTs) {
+        busData.forEach(bus => {
             const el = document.getElementById(`t-${bus.tripId}`);
-            if(!el) return; // Bus wird gerade nicht angezeigt (weil Liste zu lang)
+            if(!el) return;
 
             if (bus.cancelled) {
-                el.innerHTML = "Entfällt";
+                el.innerText = "Entfällt";
                 return;
             }
 
-            const diffMin = Math.floor((bus.time - now) / 60000);
+            const diffMin = Math.floor((bus.time - nowTs) / 60000);
             
             let val;
             if (bus.sofortSince || diffMin <= 0) {
-                val = '<span class="sofort">sofort</span>';
-            } else if (diffMin < 20) {
-                val = diffMin + " min"; // Kleines 'min' sieht oft besser aus
+                val = ''; // Leer lassen, damit "sofort" blinkt? Oder Text:
+                // Bei echten Anzeigen oft leer und blinkt, oder einfach '0 min'
+                el.innerHTML = '<span class="sofort">sofort</span>';
+            } else if (diffMin > 60) {
+                const d = new Date(bus.time);
+                el.innerText = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
             } else {
-                val = new Date(bus.time).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+                el.innerText = diffMin + " min";
             }
-
-            if(el.innerHTML !== val) el.innerHTML = val;
         });
     }
 </script>
