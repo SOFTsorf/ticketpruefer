@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DFI Koblenz Christuskirche LIVE</title>
+    <title>DFI Christuskirche LIVE</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
@@ -11,134 +11,97 @@
     <style>
         :root {
             --bg: #000000;
-            --text: #ffffff;
-            --accent: #ff9d00; /* Originales Bernstein-Orange */
+            --led: #ff9d00;
         }
-
         body {
             background-color: var(--bg);
-            color: var(--text);
+            color: #ffffff;
             font-family: 'Doto', sans-serif;
             margin: 0;
+            font-variation-settings: "ROND" 100; /* Punkt-Matrix-Optik */
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            font-variation-settings: "ROND" 100;
         }
-
         .header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 1rem 2rem;
+            padding: 20px;
+            border-bottom: 3px solid var(--led);
             background: #111;
-            border-bottom: 4px solid var(--accent);
         }
-
-        .station { font-size: clamp(1.2rem, 4vw, 2rem); text-transform: uppercase; }
-        #clock { font-size: clamp(1.2rem, 4vw, 2rem); color: var(--accent); }
-
+        .station { font-size: 2rem; line-height: 1; }
+        #clock { color: var(--led); font-size: 2rem; }
+        
         .labels {
             display: grid;
             grid-template-columns: 100px 1fr 150px;
-            padding: 0.5rem 2rem;
+            padding: 10px 20px;
             background: #222;
-            color: #888;
-            font-size: 0.9rem;
+            color: #666;
+            font-size: 0.8rem;
         }
-
         #board { flex-grow: 1; }
-
         .row {
             display: grid;
             grid-template-columns: 100px 1fr 150px;
-            padding: 1rem 2rem;
-            border-bottom: 1px solid #222;
+            padding: 15px 20px;
+            border-bottom: 1px solid #1a1a1a;
+            font-size: 2.2rem;
             align-items: center;
-            font-size: clamp(1.8rem, 6vw, 2.8rem);
         }
-
-        .line { color: var(--accent); }
-        .dest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .line { color: var(--led); }
+        .dest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
         .eta { text-align: right; }
-
-        .blink { animation: flash 1s steps(2, start) infinite; color: var(--accent); }
-        @keyframes flash { to { visibility: hidden; } }
-
-        .loader { padding: 50px; text-align: center; color: var(--accent); font-size: 1.5rem; }
+        .sofort { animation: blink 1s steps(2, start) infinite; color: var(--led); }
+        @keyframes blink { to { visibility: hidden; } }
+        .status { padding: 40px; text-align: center; color: var(--led); font-size: 1.2rem; }
     </style>
 </head>
 <body>
-
     <div class="header">
-        <div class="station">Koblenz Christuskirche</div>
+        <div class="station">KOBLENZ<br>CHRISTUSKIRCHE</div>
         <div id="clock">--:--:--</div>
     </div>
-
     <div class="labels">
-        <span>Linie</span>
-        <span>Ziel</span>
-        <span style="text-align: right;">Abfahrt</span>
+        <span>LINIE</span><span>ZIEL</span><span style="text-align:right">ABFAHRT</span>
     </div>
+    <div id="board"><div class="status">Lade Echtzeitdaten...</div></div>
 
-    <div id="board">
-        <div class="loader">Verbinde mit Echtzeit-Proxy...</div>
-    </div>
-
-<script>
-    const stopId = "de:07111:400"; 
-    const board = document.getElementById('board');
-
-    function updateClock() {
-        document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE');
-    }
-
-    async function refreshData() {
-        // Wir nutzen den AllOrigins Proxy, um die CORS-Sperre zu umgehen
-        const apiUrl = `https://v5.db.transport.rest/stops/${stopId}/departures?duration=60&results=10`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
-
-        try {
-            const response = await fetch(proxyUrl);
-            const wrapper = await response.json();
-            const data = JSON.parse(wrapper.contents); // Die eigentlichen Daten liegen im "contents" Feld
-
-            if (!data || data.length === 0) {
-                board.innerHTML = '<div class="loader">Keine aktuellen Abfahrten gefunden.</div>';
-                return;
-            }
-
-            board.innerHTML = "";
-            const now = new Date();
-
-            data.forEach(dep => {
-                const plannedTime = new Date(dep.when || dep.plannedWhen);
-                const diffMin = Math.round((plannedTime - now) / 60000);
-                
-                const row = document.createElement('div');
-                row.className = 'row';
-
-                let timeOutput = diffMin <= 0 ? '<span class="blink">sofort</span>' : (diffMin > 59 ? plannedTime.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}) : diffMin + ' min');
-
-                row.innerHTML = `
-                    <div class="line">${dep.line?.name || '???'}</div>
-                    <div class="dest">${(dep.direction || 'Unbekannt').toUpperCase()}</div>
-                    <div class="eta">${timeOutput}</div>
-                `;
-                board.appendChild(row);
-            });
-        } catch (err) {
-            console.error("Fehler:", err);
-            board.innerHTML = `<div class="loader" style="color:red">Server-Fehler. Versuche Proxy-Wechsel...</div>`;
+    <script>
+        function updateClock() {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE');
         }
-    }
 
-    setInterval(updateClock, 1000);
-    setInterval(refreshData, 30000);
+        async function loadDepartures() {
+            try {
+                // Wir rufen jetzt unsere eigene API-Datei auf, um CORS zu umgehen
+                const response = await fetch('/api/departures');
+                const data = await response.json();
+                
+                const board = document.getElementById('board');
+                board.innerHTML = "";
+                
+                data.forEach(dep => {
+                    const diff = Math.round((new Date(dep.when || dep.plannedWhen) - new Date()) / 60000);
+                    const row = document.createElement('div');
+                    row.className = 'row';
+                    
+                    let timeStr = diff <= 0 ? '<span class="sofort">sofort</span>' : diff + ' min';
+                    if (diff > 59) timeStr = new Date(dep.when).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
 
-    updateClock();
-    refreshData();
-</script>
+                    row.innerHTML = `<div class="line">${dep.line.name}</div><div class="dest">${dep.direction}</div><div class="eta">${timeStr}</div>`;
+                    board.appendChild(row);
+                });
+            } catch (e) {
+                document.getElementById('board').innerHTML = '<div class="status" style="color:red">Server-Fehler. Versuche erneut...</div>';
+            }
+        }
 
+        setInterval(updateClock, 1000);
+        setInterval(loadDepartures, 20000);
+        updateClock();
+        loadDepartures();
+    </script>
 </body>
 </html>
