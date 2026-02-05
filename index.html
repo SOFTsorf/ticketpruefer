@@ -3,139 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DFI Christuskirche Koblenz</title>
+    <title>DFI Koblenz Christuskirche - Live</title>
     <style>
-        @font-face {
-            font-family: 'LED-Dot';
-            src: url('https://fonts.cdnfonts.com/s/18211/DOTMATRI.woff') format('woff');
-        }
-
         :root {
-            --led-orange: #ff9d00;
-            --led-bg: #050505;
+            --display-bg: #000000;
+            --text-color: #ffffff;
+            --highlight: #ffcc00; /* Modernes Gelb-Orange für die Zeit */
+            --border-color: #333;
         }
 
         body {
-            background-color: #222;
+            background-color: var(--display-bg);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Arial, sans-serif;
             margin: 0;
+            padding: 0;
             display: flex;
-            justify-content: center;
-            align-items: center;
+            flex-direction: column;
             height: 100vh;
-            overflow: hidden;
         }
 
-        /* Das Gehäuse der Anzeige */
-        .dfi-case {
-            background-color: #444;
-            padding: 20px;
-            border-radius: 10px;
-            border: 6px solid #333;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            width: 90vw;
-            max-width: 800px;
-        }
-
-        .display-screen {
-            background-color: var(--led-bg);
-            padding: 20px;
-            border: 2px solid #222;
-            position: relative;
-        }
-
+        /* Kopfzeile mit Haltestelle und Echtzeit-Uhr */
         .header {
             display: flex;
             justify-content: space-between;
-            color: #ddd;
-            font-family: Arial, sans-serif;
-            font-weight: bold;
-            border-bottom: 2px solid #333;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-            font-size: 1.5rem;
+            align-items: center;
+            padding: 20px 40px;
+            background-color: #1a1a1a;
+            border-bottom: 4px solid var(--highlight);
         }
 
-        .table-head {
-            display: grid;
-            grid-template-columns: 80px 1fr 120px;
-            color: #888;
-            font-family: Arial, sans-serif;
-            font-size: 0.9rem;
+        .station-name {
+            font-size: 2.5rem;
+            font-weight: bold;
             text-transform: uppercase;
-            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+
+        #clock {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--highlight);
+        }
+
+        /* Tabellenkopf */
+        .table-header {
+            display: grid;
+            grid-template-columns: 150px 1fr 200px;
+            padding: 15px 40px;
+            background: #222;
+            color: #aaa;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* Abfahrtsliste */
+        #departure-list {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
         }
 
         .departure-row {
             display: grid;
-            grid-template-columns: 80px 1fr 120px;
-            color: var(--led-orange);
-            font-family: 'Courier New', Courier, monospace; /* Fallback für LED Font */
-            font-size: 2rem;
-            line-height: 1.2;
-            text-shadow: 0 0 5px var(--led-orange);
-            margin-bottom: 10px;
+            grid-template-columns: 150px 1fr 200px;
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+            font-size: 2.2rem;
+            font-weight: 500;
         }
 
-        .line { font-weight: bold; }
-        .destination { text-transform: uppercase; overflow: hidden; white-space: nowrap; }
-        .time { text-align: right; }
+        .line {
+            color: var(--highlight);
+            font-weight: 800;
+        }
 
-        #clock { color: var(--led-orange); }
+        .destination {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 20px;
+        }
+
+        .time {
+            text-align: right;
+            font-weight: bold;
+        }
+
+        /* "Sofort" Blinken Effekt */
+        .sofort {
+            color: var(--highlight);
+            animation: blink-animation 1s steps(2, start) infinite;
+        }
+
+        @keyframes blink-animation {
+            to {
+                visibility: hidden;
+            }
+        }
+
+        /* Laufzeile unten (optional für Störungen) */
+        .ticker {
+            background: var(--highlight);
+            color: black;
+            padding: 10px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            overflow: hidden;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
 
-<div class="dfi-case">
-    <div class="display-screen">
-        <div class="header">
-            <span>Koblenz Christuskirche</span>
-            <span id="clock">17:18</span>
-        </div>
-        
-        <div class="table-head">
-            <span>Linie</span>
-            <span>Ziel</span>
-            <span style="text-align: right;">Abfahrt</span>
+    <div class="header">
+        <div class="station-name">Koblenz Christuskirche</div>
+        <div id="clock">00:00:00</div>
+    </div>
+
+    <div class="table-header">
+        <span>Linie</span>
+        <span>Ziel</span>
+        <span style="text-align: right;">Abfahrt</span>
+    </div>
+
+    <div id="departure-list">
         </div>
 
-        <div id="departure-list">
-            </div>
+    <div class="ticker">
+        +++ Willkommen in Koblenz +++ D-Ticket Prüfung aktiv +++ Bitte im vorderen Bereich einsteigen +++
     </div>
-</div>
 
 <script>
-    // Live-Daten Simulation für Koblenz Christuskirche
-    const mockDepartures = [
-        { line: "2/12", destination: "Karthause", time: "3 Min" },
-        { line: "5", destination: "Metternich", time: "14:09" },
-        { line: "8", destination: "Bendorf", time: "14:10" },
-        { line: "27", destination: "Asterstein", time: "14:25" },
-        { line: "9", destination: "Immendorf", time: "14:39" },
-        { line: "15", destination: "Rübenach", time: "14:40" }
+    // Beispiel-Daten (In einer echten App kämen diese von der VRM API)
+    const departures = [
+        { line: "2/12", dest: "Karthause", minutes: 0 }, // 0 = sofort
+        { line: "5", dest: "Metternich", minutes: 2 },
+        { line: "8", dest: "Bendorf", minutes: 5 },
+        { line: "27", dest: "Asterstein", minutes: 12 },
+        { line: "9", dest: "Immendorf", minutes: 18 },
+        { line: "15", dest: "Rübenach", minutes: 24 }
     ];
 
     function updateDisplay() {
-        const list = document.getElementById('departure-list');
-        const clock = document.getElementById('clock');
-        
-        // Uhrzeit aktualisieren
         const now = new Date();
-        clock.innerText = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        
+        // 1. Uhrzeit auf die Sekunde genau
+        document.getElementById('clock').innerText = now.toLocaleTimeString('de-DE');
 
-        // Liste bauen
-        list.innerHTML = mockDepartures.map(dep => `
-            <div class="departure-row">
-                <span class="line">${dep.line}</span>
-                <span class="destination">${dep.destination}</span>
-                <span class="time">${dep.time}</span>
-            </div>
-        `).join('');
+        // 2. Abfahrten rendern
+        const list = document.getElementById('departure-list');
+        list.innerHTML = "";
+
+        departures.forEach(dep => {
+            const row = document.createElement('div');
+            row.className = 'departure-row';
+
+            // Logik für "sofort" und blinken
+            let timeDisplay;
+            if (dep.minutes <= 0) {
+                timeDisplay = '<span class="sofort">sofort</span>';
+            } else {
+                timeDisplay = dep.minutes + ' min';
+            }
+
+            row.innerHTML = `
+                <div class="line">${dep.line}</div>
+                <div class="destination">${dep.dest}</div>
+                <div class="time">${timeDisplay}</div>
+            `;
+            list.appendChild(row);
+        });
     }
 
-    // Initialisierung
+    // Jede Sekunde aktualisieren
+    setInterval(updateDisplay, 1000);
+    
+    // Initialer Aufruf
     updateDisplay();
-    // Alle 30 Sekunden aktualisieren
-    setInterval(updateDisplay, 30000);
+
+    // Simulation: Alle 10 Sekunden rückt ein Bus nach (nur zur Demo)
+    setInterval(() => {
+        departures.forEach(d => {
+            if(d.minutes > 0) d.minutes -= 1;
+            else d.minutes = 25; // Reset für Demo
+        });
+    }, 10000);
 </script>
 
 </body>
