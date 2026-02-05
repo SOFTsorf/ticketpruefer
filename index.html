@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>StatusAnzeige für Bus&Bahn koveb | VRM</title>
+    <title>DFI Pro - Status & Ausfälle</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,8 +11,8 @@
 
     <style>
         :root {
-            --led: #ffaa00;     /* Standard Orange */
-            --led-red: #ff3333; /* Alarm/Ausfall Rot */
+            --led: #ffaa00;     
+            --led-red: #ff3333; 
             --bg: #000;
             --col-line: 20vw; 
             --col-time: 25vw;
@@ -53,7 +53,6 @@
             background: rgba(255,255,255,0.05); padding: 5px; border-radius: 5px;
         }
 
-        /* KOPFZEILE */
         .header-area { flex: 0 0 auto; padding: 2vh 0 1vh 0; }
         
         .header-top {
@@ -71,7 +70,6 @@
             flex: 1;
         }
 
-        /* UHR IN PIXEL-OPTIK */
         #current-time {
             font-family: 'Doto', sans-serif;
             font-variation-settings: "ROND" 100;
@@ -91,7 +89,6 @@
         }
         .labels span:last-child { text-align: right; }
 
-        /* MATRIX */
         #matrix { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
 
         .row {
@@ -108,7 +105,6 @@
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-scroll { animation: marquee 14s linear infinite; }
 
-        /* ZEIT & STATUS STYLES */
         .time-cell { 
             text-align: right; font-variant-numeric: tabular-nums; 
             display: flex; flex-direction: column; justify-content: center; align-items: flex-end;
@@ -116,12 +112,10 @@
         
         .sofort { text-transform: lowercase; font-size: 0.85em; animation: blink 1s steps(2, start) infinite; }
         
-        /* Styles für Ausfälle */
         .row.cancelled { color: var(--led-red); }
         .row.cancelled .dest-cell { text-decoration: line-through; opacity: 0.7; }
         .cancelled-msg { font-size: 0.6em; text-transform: uppercase; animation: blink-red 2s infinite; }
 
-        /* Styles für Verspätung */
         .delay-info { 
             font-size: 0.35em; font-family: 'Inter', sans-serif; font-weight: bold;
             color: var(--led-red); margin-bottom: -5px; display: block;
@@ -135,7 +129,7 @@
 <body>
 
     <div id="setup-screen">
-    <h1>koveb/VRM Anzeige</h1>    
+        <h2 style="margin-bottom: 20px;">DFI Simulator Pro</h2>
         <div class="input-group"><input type="text" id="city-input" placeholder="Stadt"></div>
         <div class="input-group"><input type="text" id="stop-input" placeholder="Haltestelle"></div>
         <button id="start-btn">Anzeige starten</button>
@@ -162,17 +156,11 @@
 
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => alert(err.message));
+            document.documentElement.requestFullscreen().catch(err => console.log(err.message));
         } else {
             document.exitFullscreen();
         }
     }
-
-    document.addEventListener('fullscreenchange', () => {
-        const btn = document.getElementById('fs-icon');
-        btn.style.display = document.fullscreenElement ? 'none' : 'block';
-        renderFrame();
-    });
 
     async function requestWakeLock() {
         if ('wakeLock' in navigator) {
@@ -181,13 +169,17 @@
     }
 
     document.getElementById('start-btn').onclick = async () => {
-        const city = document.getElementById('city-input').value;
-        const stop = document.getElementById('stop-input').value;
+        const city = document.getElementById('city-input').value.trim();
+        const stop = document.getElementById('stop-input').value.trim();
+        if(!city || !stop) return alert("Bitte Stadt und Haltestelle eingeben!");
+
         const query = `${city} ${stop}`;
         try {
             const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(query)}&results=1`);
+            if (!res.ok) throw new Error("Server-Antwort fehlerhaft");
             const data = await res.json();
-            if(!data[0]) return alert("Haltestelle nicht gefunden!");
+            
+            if(!data || data.length === 0) return alert("Haltestelle nicht gefunden!");
             
             stationID = data[0].id;
             document.getElementById('station-title').innerText = data[0].name;
@@ -196,14 +188,15 @@
             
             requestWakeLock();
             startEngine();
-        } catch(e) { alert("Verbindungsfehler!"); }
+        } catch(e) { 
+            alert("Verbindungsfehler zur API: " + e.message); 
+        }
     };
 
     function startEngine() {
         updateData();
         updateHeaderClock();
         setInterval(updateData, 30000);
-        // Die Logik wird jede Sekunde ausgeführt, um das "sofort" Timing zu prüfen
         setInterval(processLogic, 1000);
         setInterval(updateHeaderClock, 1000);
         window.addEventListener('resize', renderFrame);
@@ -213,35 +206,17 @@
         const now = new Date();
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         const clockEl = document.getElementById('current-time');
-        if (clockEl && clockEl.innerText !== timeStr) {
-            clockEl.innerText = timeStr;
-        }
-    }
-
-    function sortData() {
-        // Sortierung angepasst: Verlässt sich jetzt rein auf das 'sofortSince' Flag,
-        // das in processLogic gesetzt wird.
-        busData.sort((a, b) => {
-            const aIsSofort = !a.cancelled && a.sofortSince;
-            const bIsSofort = !b.cancelled && b.sofortSince;
-
-            // "Sofort"-Busse immer zuerst
-            if (aIsSofort && !bIsSofort) return -1; 
-            if (!aIsSofort && bIsSofort) return 1;
-            
-            // Ansonsten nach normaler Zeit
-            return a.time - b.time;
-        });
+        if (clockEl && clockEl.innerText !== timeStr) clockEl.innerText = timeStr;
     }
 
     async function updateData() {
         if(!stationID) return;
         try {
             const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=20&duration=60&remarks=true`);
+            if (!res.ok) return; // Silent fail bei Hintergrund-Updates
             const data = await res.json();
             
-            busData = data.departures.map(dep => {
-                // Prüfen, ob dieser Bus schon in der alten Liste war, um den Timer-Status zu behalten
+            const newBusData = data.departures.map(dep => {
                 const existing = busData.find(b => b.tripId === dep.tripId);
                 
                 let hints = "";
@@ -250,63 +225,49 @@
                     if(txt) hints = " +++ " + txt;
                 }
 
-                const delaySec = dep.delay || 0;
-
                 return {
-                    tripId: dep.tripId || (dep.line.name + dep.direction + dep.when),
+                    tripId: dep.tripId || (dep.line.name + dep.direction + (dep.when || dep.plannedWhen)),
                     line: dep.line.name,
                     dest: dep.direction + hints, 
                     time: new Date(dep.when || dep.plannedWhen),
                     cancelled: dep.cancelled || false, 
-                    delay: delaySec,
-                    // Übernehme den Startzeitpunkt des "sofort"-Timers, falls vorhanden
+                    delay: dep.delay || 0,
                     sofortSince: existing ? existing.sofortSince : null
                 };
             });
             
-            // Nach dem Laden der neuen Daten sofort die Logik ausführen, 
-            // um Timer zu starten und zu sortieren.
+            busData = newBusData;
             processLogic(); 
-        } catch(e) {}
+        } catch(e) {
+            console.error("Update fehlgeschlagen:", e);
+        }
     }
 
-    // WICHTIG: Diese Funktion steuert das Verschwinden nach 20 Sekunden
     function processLogic() {
         const now = Date.now();
 
-        // SCHRITT 1: Identifiziere Busse, die JETZT "sofort" werden
         busData.forEach(bus => {
-            if (bus.cancelled || bus.sofortSince) return; // Bereits behandelt
-
+            if (bus.cancelled || bus.sofortSince) return;
             const timeDiff = bus.time - now;
-            // Wenn weniger als 60 Sekunden bis zur Abfahrt (oder schon vorbei),
-            // starte den 20-Sekunden-Timer, indem wir den aktuellen Zeitstempel speichern.
+            // Starte 20s-Timer sobald < 60s Restzeit
             if (timeDiff <= 60000) {
                  bus.sofortSince = now;
             }
         });
         
-        // SCHRITT 2: Filtern der Liste
         busData = busData.filter(bus => {
-            // Ausfälle bleiben noch 60s sichtbar, damit man sie wahrnimmt
-            if (bus.cancelled) {
-                return (bus.time - now) > -60000; 
-            }
-
-            // Normale Busse prüfen
-            if (bus.sofortSince) {
-                // Wenn der "sofort"-Timer läuft, prüfe ob 20 Sekunden (20000ms) vergangen sind.
-                // Wenn ja, fliegt der Bus aus der Liste (return false).
-                return (now - bus.sofortSince) < 20000;
-            } else {
-                // Bus liegt noch weiter in der Zukunft, behalten.
-                return true;
-            }
+            if (bus.cancelled) return (bus.time - now) > -60000; 
+            if (bus.sofortSince) return (now - bus.sofortSince) < 20000;
+            return true;
         });
 
-        sortData();
+        busData.sort((a, b) => {
+            if (a.sofortSince && !b.sofortSince) return -1;
+            if (!a.sofortSince && b.sofortSince) return 1;
+            return a.time - b.time;
+        });
+
         renderFrame();
-        // Clocks updaten, damit die Anzeige (Min vs. sofort) synchron zur Logik ist
         updateClocks(); 
     }
 
@@ -324,18 +285,11 @@
         if (list.length === 0 && stationID) {
             if (container.dataset.ids === "none") return;
             container.dataset.ids = "none";
-            container.innerHTML = `
-                <div class="row">
-                    <div class="line-cell"></div>
-                    <div class="dest-cell">Keine Fahrten mehr für heute.</div>
-                    <div class="time-cell"></div>
-                </div>
-            `;
+            container.innerHTML = `<div class="row"><div class="line-cell"></div><div class="dest-cell">Keine Fahrten mehr für heute.</div><div class="time-cell"></div></div>`;
             return;
         }
 
-        const ids = list.map(b => b.tripId + b.cancelled + b.delay).join('|') + maxRows;
-        
+        const ids = list.map(b => b.tripId + b.cancelled).join('|') + maxRows;
         if (container.dataset.ids === ids) return;
         container.dataset.ids = ids;
 
@@ -343,7 +297,6 @@
         list.forEach((bus, i) => {
             const row = document.createElement('div');
             row.className = `row ${bus.cancelled ? 'cancelled' : ''}`;
-            
             row.innerHTML = `
                 <div class="line-cell">${bus.line}</div>
                 <div class="dest-cell" id="c-${i}"><span class="marquee-content" id="m-${i}">${bus.dest}</span></div>
@@ -366,42 +319,23 @@
     function updateClocks() {
         const now = Date.now();
         const rows = document.querySelectorAll('.time-cell');
-        if (busData.length === 0) return;
         
         busData.slice(0, rows.length).forEach((bus, i) => {
             const el = document.getElementById(`t-${i}`);
             if(!el) return;
 
             let html = '';
-
             if (bus.cancelled) {
                 html = '<span class="cancelled-msg">Entfällt</span>';
             } else {
                 const diffMin = Math.floor((bus.time - now) / 60000);
-                // Ein Bus ist "sofort", wenn sein Timer läuft ODER rechnerisch 0 Min verbleiben.
-                // Dies deckt sich jetzt mit der Logik in processLogic.
-                const isSofort = (bus.sofortSince || diffMin <= 0);
-
-                if (isSofort) {
+                if (bus.sofortSince || diffMin <= 0) {
                     html = '<span class="sofort">sofort</span>';
                 } else {
-                    let delayHtml = '';
-                    if (bus.delay > 60) {
-                        const delayMin = Math.floor(bus.delay / 60);
-                        delayHtml = `<span class="delay-info">+ ${delayMin}</span>`;
-                    } else if (bus.delay < -60) {
-                         delayHtml = `<span class="delay-info">${Math.ceil(bus.delay/60)}</span>`;
-                    }
-
-                    if (diffMin < 20) {
-                        html = `${delayHtml}${diffMin} Min`;
-                    } else {
-                        const timeStr = bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
-                        html = `${delayHtml}${timeStr}`;
-                    }
+                    let delayHtml = bus.delay > 60 ? `<span class="delay-info">+ ${Math.floor(bus.delay/60)}</span>` : '';
+                    html = diffMin < 20 ? `${delayHtml}${diffMin} Min` : `${delayHtml}${bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}`;
                 }
             }
-            
             if(el.innerHTML !== html) el.innerHTML = html;
         });
     }
