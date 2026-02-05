@@ -2,277 +2,245 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DFI Koblenz Zentralplatz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED Display Zentralplatz</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Doto:wght,ROND@800,100&family=Inter:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Doto:wght,ROND@800,100&family=Inter:wght@700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --case-bg: #4a4d52;      /* Die Farbe des grauen Kastens */
-            --screen-bg: #181818;    /* Der fast schwarze Hintergrund der Anzeige */
-            --led-on: #ffaa00;       /* Die Farbe der leuchtenden Punkte */
-            --text-static: #d0d0d0;  /* Farbe für "Linie/Ziel/Abfahrt" */
+            --led-color: #ffaa00;
+            --bg-color: #000000;
         }
 
         * {
             box-sizing: border-box;
+            cursor: none; /* Versteckt den Mauszeiger für echtes Display-Feeling */
         }
 
-        body {
-            background-color: #f0f0f0;
-            display: flex;
-            justify-content: center;
-            align-items: center; /* Zentriert vertikal */
-            min-height: 100vh;
+        body, html {
             margin: 0;
-            font-family: 'Inter', sans-serif;
-            padding: 10px;
-        }
-
-        /* Das Gehäuse */
-        .dfi-housing {
-            background-color: var(--case-bg);
-            padding: 15px 20px 30px 20px;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 500px; /* Breite wie eine echte Anzeige */
-            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-            position: relative;
-        }
-
-        /* Überschrift: Zentralplatz */
-        .station-header {
-            color: #e0e0e0;
-            font-size: 2rem;
-            font-weight: 600;
-            margin-bottom: 15px;
-            letter-spacing: 0.5px;
-            padding-left: 5px;
-        }
-
-        /* Kopfzeile: Linie Ziel Abfahrt */
-        .column-headers {
-            display: grid;
-            grid-template-columns: 1.2fr 4fr 1.5fr;
-            color: var(--text-static);
-            font-size: 0.95rem;
-            margin-bottom: 8px;
-            padding: 0 5px;
-        }
-
-        .column-headers span:last-child {
-            text-align: right;
-        }
-
-        /* Der Bildschirmbereich */
-        .matrix-display {
-            background-color: var(--screen-bg);
-            padding: 15px 10px;
-            border-radius: 4px;
-            box-shadow: inset 0 3px 15px rgba(0,0,0,0.7);
-            min-height: 220px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* Zeilen in der Matrix */
-        .matrix-row {
-            display: grid;
-            grid-template-columns: 1.2fr 4fr 1.5fr;
-            margin-bottom: 12px; /* Abstand zwischen Bussen */
-            align-items: baseline;
-            
-            /* HIER passiert die Magie für den LED Look: */
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--led-color);
             font-family: 'Doto', sans-serif;
-            font-weight: 800;
-            font-variation-settings: "ROND" 100; /* Runde Pixel */
-            color: var(--led-on);
-            font-size: 1.4rem; /* Schriftgröße der LEDs */
-            line-height: 1.1;
-            text-transform: uppercase;
-            text-shadow: 0 0 5px rgba(255, 170, 0, 0.5); /* Leuchten */
-        }
-
-        .line { text-align: left; }
-        
-        .dest { 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-            padding-right: 10px;
-        }
-        
-        .time { 
-            text-align: right; 
-        }
-
-        /* Blink-Effekt für "sofort" */
-        .blink {
-            animation: blinker 1.5s steps(2, start) infinite;
-        }
-
-        @keyframes blinker {
-            to { visibility: hidden; }
-        }
-
-        /* Lade- / Fehlermeldungen */
-        .status-msg {
-            font-family: 'Doto', sans-serif;
-            font-weight: 800;
             font-variation-settings: "ROND" 100;
-            color: var(--led-on);
-            text-align: center;
-            margin-top: 60px;
-            font-size: 1.2rem;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Vollbild-Button Styling */
+        #fullscreen-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: var(--led-color);
+            padding: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 100;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+        
+        #fullscreen-btn:hover { opacity: 1; cursor: default; }
+
+        /* Button ausblenden wenn im Vollbild */
+        :fullscreen #fullscreen-btn {
+            display: none;
+        }
+
+        /* Kopfzeile */
+        .header {
+            font-family: 'Inter', sans-serif;
+            font-size: 5vh;
+            padding: 2vh 4vw;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            border-bottom: 2px solid #222;
+        }
+
+        .labels {
+            display: grid;
+            grid-template-columns: 15vw 1fr 20vw;
+            font-size: 2.5vh;
+            color: #444;
+            padding: 1vh 4vw;
             text-transform: uppercase;
         }
 
-        .error-msg {
-            color: #ff4444; /* Rot bei Fehler */
-            text-shadow: none;
+        /* Matrix Content */
+        #display-container {
+            flex-grow: 1;
+            padding: 0 4vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
         }
 
+        .row {
+            display: grid;
+            grid-template-columns: 15vw 1fr 20vw;
+            align-items: center;
+            height: 12vh;
+            font-size: 7vh;
+            white-space: nowrap;
+            overflow: hidden;
+            border-bottom: 1px solid #111;
+        }
+
+        .line { font-weight: 800; }
+
+        /* Scrolling Logik */
+        .dest-container {
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+        }
+
+        .scrolling-text {
+            display: inline-block;
+            padding-right: 100%; /* Platz für den Loop */
+        }
+
+        .animate-scroll {
+            display: inline-block;
+            animation: scroll-text 15s linear infinite;
+        }
+
+        @keyframes scroll-text {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+
+        .time {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sofort {
+            text-transform: lowercase;
+            font-size: 0.85em;
+        }
+
+        .error { color: #500; font-size: 3vh; text-align: center; margin-top: 20vh; }
     </style>
 </head>
 <body>
 
-    <div class="dfi-housing">
-        <div class="station-header">Zentralplatz</div>
-        
-        <div class="column-headers">
-            <span>Linie</span>
-            <span>Ziel</span>
-            <span>Abfahrt</span>
-        </div>
+    <button id="fullscreen-btn" onclick="toggleFull()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </button>
 
-        <div class="matrix-display" id="display">
-            <div class="status-msg blink">Suche Verbindung...</div>
-        </div>
+    <div class="header">
+        <span>Zentralplatz</span>
     </div>
 
-    <script>
-        // Wir suchen zuerst dynamisch nach der Station, das ist sicherer
-        const STATION_NAME = "Koblenz Zentralplatz Forum";
-        let stationID = null;
+    <div class="labels">
+        <span>Linie</span>
+        <span>Ziel</span>
+        <span>Abfahrt</span>
+    </div>
 
-        const display = document.getElementById('display');
+    <div id="display-container">
+        </div>
 
-        async function init() {
-            try {
-                // 1. Station ID suchen (verhindert falschen Code)
-                if (!stationID) {
-                    const searchResp = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(STATION_NAME)}&results=1`);
-                    const searchData = await searchResp.json();
-                    
-                    if (searchData && searchData.length > 0) {
-                        stationID = searchData[0].id;
-                        console.log("Station ID gefunden:", stationID);
-                    } else {
-                        throw new Error("Station nicht gefunden");
-                    }
-                }
+<script>
+    const STATION_NAME = "Koblenz Zentralplatz Forum";
+    let stationID = null;
+    let cachedDepartures = [];
 
-                updateDepartures();
-                // Aktualisiere alle 30 Sekunden
-                setInterval(updateDepartures, 30000);
-
-            } catch (e) {
-                showError("Verbindungsfehler");
-                // Versuche es in 5 Sekunden nochmal
-                setTimeout(init, 5000);
-            }
+    // Vollbild Funktion
+    function toggleFull() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+        } else {
+            document.exitFullscreen();
         }
+    }
 
-        async function updateDepartures() {
-            if (!stationID) return;
-
-            try {
-                // 2. Abfahrten laden
-                const resp = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=6&duration=60`);
-                if (!resp.ok) throw new Error("API Fehler");
-                
-                const data = await resp.json();
-                renderBoard(data.departures);
-
-            } catch (e) {
-                console.error(e);
-                // Wenn schon Daten da sind, nichts tun (besser alte Daten als "Fehler")
-                if (display.innerHTML.includes("Suche")) {
-                    showError("Keine Daten");
-                }
-            }
+    // Initialisierung
+    async function init() {
+        try {
+            const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(STATION_NAME)}&results=1`);
+            const data = await res.json();
+            stationID = data[0].id;
+            
+            updateData();
+            setInterval(updateData, 30000); // Alle 30 Sek neue Daten von API
+            setInterval(render, 1000);      // Jede Sekunde Anzeige auffrischen (für "sofort" & Scrolling)
+        } catch (e) {
+            document.getElementById('display-container').innerHTML = '<div class="error">VERBINDUNG FEHLT...</div>';
         }
+    }
 
-        function renderBoard(departures) {
-            display.innerHTML = ''; // Leeren
+    async function updateData() {
+        if (!stationID) return;
+        try {
+            const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=8&duration=60`);
+            const data = await res.json();
+            cachedDepartures = data.departures;
+        } catch (e) { console.error("API Error", e); }
+    }
 
-            if (!departures || departures.length === 0) {
-                display.innerHTML = '<div class="status-msg">Kein Betrieb</div>';
-                return;
+    function render() {
+        const container = document.getElementById('display-container');
+        if (cachedDepartures.length === 0) return;
+
+        const now = new Date();
+        let html = '';
+
+        cachedDepartures.forEach((dep, index) => {
+            const timeObj = new Date(dep.when || dep.plannedWhen);
+            const diffMin = Math.floor((timeObj - now) / 60000);
+
+            let timeStr;
+            if (diffMin <= 1) {
+                timeStr = '<span class="sofort">sofort</span>';
+            } else if (diffMin < 20) {
+                timeStr = diffMin + ' Min';
+            } else {
+                timeStr = timeObj.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
             }
 
-            const now = new Date();
+            const line = dep.line.name;
+            const dest = dep.direction;
 
-            departures.forEach(dep => {
-                // Zeit berechnen
-                const realTime = dep.when || dep.plannedWhen;
-                const dateObj = new Date(realTime);
-                const diffMs = dateObj - now;
-                const minutes = Math.floor(diffMs / 60000);
-
-                // LOGIK: "sofort" oder Zeit
-                let timeString = "";
-                let isImmediate = false;
-
-                if (minutes <= 1) { 
-                    // Wenn weniger als 1 Minute
-                    timeString = "sofort";
-                    isImmediate = true;
-                } else if (minutes < 20) {
-                    // Bis 20 Min zeigen wir Minuten
-                    timeString = minutes + " Min";
-                } else {
-                    // Danach Uhrzeit (HH:MM)
-                    const h = dateObj.getHours().toString().padStart(2, '0');
-                    const m = dateObj.getMinutes().toString().padStart(2, '0');
-                    timeString = h + ":" + m;
-                }
-
-                // Linie und Ziel
-                let line = dep.line.name || "?";
-                let dest = dep.direction || "Unbekannt";
-
-                // Ziel kürzen, falls extrem lang (damit es ins Layout passt)
-                if (dest.length > 18) {
-                    dest = dest.substring(0, 16) + ".";
-                }
-
-                // HTML bauen
-                const row = document.createElement('div');
-                row.className = 'matrix-row';
-                
-                // Falls "sofort", fügen wir eventuell eine Blink-Klasse hinzu?
-                // Echte Anzeigen blinken oft bei "sofort" nicht, aber wenn du willst:
-                // if (isImmediate) timeString = `<span class="">${timeString}</span>`;
-
-                row.innerHTML = `
+            html += `
+                <div class="row">
                     <span class="line">${line}</span>
-                    <span class="dest">${dest}</span>
-                    <span class="time">${timeString}</span>
-                `;
-                display.appendChild(row);
-            });
-        }
+                    <div class="dest-container">
+                        <span class="scrolling-text" id="dest-${index}">${dest}</span>
+                    </div>
+                    <span class="time">${timeStr}</span>
+                </div>
+            `;
+        });
 
-        function showError(msg) {
-            display.innerHTML = `<div class="status-msg error-msg">${msg}</div>`;
-        }
+        container.innerHTML = html;
 
-        // Starten
-        init();
-    </script>
+        // Scrolling Animation triggern wenn Text zu lang
+        cachedDepartures.forEach((_, index) => {
+            const el = document.getElementById(`dest-${index}`);
+            if (el && el.offsetWidth > el.parentElement.offsetWidth) {
+                el.classList.add('animate-scroll');
+                // Verdopple Text für nahtlosen Loop
+                if (!el.innerHTML.includes(' &nbsp;&nbsp;&nbsp; ')) {
+                    el.innerHTML += ' &nbsp;&nbsp;&nbsp;&nbsp; ' + el.innerHTML;
+                }
+            }
+        });
+    }
+
+    init();
+</script>
 </body>
 </html>
