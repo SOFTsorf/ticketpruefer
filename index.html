@@ -14,9 +14,8 @@
         :root {
             /* MODERN DFI COLORS */
             --led-on: #ffb000;      /* Klassisches DFI Orange/Amber */
-            --led-off: #2a1f00;     /* Die Farbe von "ausgeschalteten" Pixeln (ganz dunkel orange) */
+            --led-off: #2a1f00;     /* Die Farbe von "ausgeschalteten" Pixeln */
             --bg-color: #050505;    /* Gehäuse Schwarz */
-            --grid-line: #000000;   /* Das Gitter zwischen den Pixeln */
             
             --pixel-size: 3px;      /* Größe eines Pixels für das Hintergrundmuster */
             
@@ -38,19 +37,17 @@
         }
 
         /* --- MATRIX GRID EFFEKT (Hintergrund) --- */
-        /* Erzeugt das Gefühl von einzelnen LEDs */
         .matrix-overlay {
             position: fixed; inset: 0; pointer-events: none; z-index: 9999;
             background-image: 
                 linear-gradient(90deg, rgba(0,0,0,0.8) 10%, transparent 10%),
                 linear-gradient(rgba(0,0,0,0.8) 10%, transparent 10%);
             background-size: var(--pixel-size) var(--pixel-size);
-            opacity: 0.6; /* Stärke des Gitter-Effekts */
+            opacity: 0.6; 
         }
 
         /* --- GLOW (Bloom) --- */
         #display-screen {
-            /* Moderner, softer Glow, nicht übertrieben */
             text-shadow: 0 0 8px rgba(255, 176, 0, 0.5), 0 0 2px rgba(255, 176, 0, 0.8);
         }
 
@@ -74,13 +71,15 @@
             transition: transform 0.1s;
         }
         #start-btn:active { transform: scale(0.98); }
+        #error-msg {
+            color: #ff3333; margin-top: 10px; font-size: 0.9rem; min-height: 1.2em; text-align: center;
+        }
 
         /* --- LAMP TEST (Boot Animation) --- */
         #lamp-test {
             position: fixed; inset: 0; z-index: 9000;
-            background-color: var(--led-on); /* Alles an! */
+            background-color: var(--led-on);
             display: none;
-            /* Das Grid liegt darüber durch z-index 9999 des matrix-overlay */
         }
 
         /* --- MAIN DISPLAY --- */
@@ -89,49 +88,39 @@
             box-sizing: border-box; padding: 1vh 2vw;
         }
 
-        /* Header Bereich (Wie auf dem Foto) */
         .header {
             display: flex; justify-content: space-between; align-items: flex-end;
-            border-bottom: 2px solid var(--led-on); /* Die Linie unter dem Stationsnamen */
+            border-bottom: 2px solid var(--led-on);
             padding-bottom: 0.5vh;
             margin-bottom: 0.5vh;
         }
         .station-name {
-            font-size: 5vh; 
-            line-height: 1;
+            font-size: 5vh; line-height: 1;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             max-width: 80%;
-            text-transform: capitalize; /* Wie auf Foto: "Dammstraße" */
+            text-transform: uppercase; /* Sieht oft realistischer aus */
         }
-        .clock {
-            font-size: 5vh;
-            line-height: 1;
-        }
+        .clock { font-size: 5vh; line-height: 1; }
 
-        /* Spaltenüberschriften */
         .labels {
             display: grid; 
             grid-template-columns: var(--col-line) 1fr var(--col-time);
-            font-family: 'Inter', sans-serif; /* Nicht-Matrix Schrift für Labels ist realistisch für Gehäusedruck, hier aber digital simuliert */
+            font-family: 'Inter', sans-serif; 
             color: #888; 
             font-size: 2vh;
-            text-transform: none; /* Foto zeigt "Linie", "Ziel" etc. */
             padding-bottom: 1vh;
         }
         .labels span:last-child { text-align: right; }
 
-        /* Die Matrix Zeilen */
-        #matrix-rows {
-            flex: 1; overflow: hidden; display: flex; flex-direction: column;
-        }
+        #matrix-rows { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
         
         .row {
             display: grid; 
             grid-template-columns: var(--col-line) 1fr var(--col-time);
             align-items: baseline;
-            font-size: 5.5vh; /* Schön groß */
+            font-size: 5.5vh; 
             line-height: 1.3;
-            border-bottom: 1px solid rgba(255, 176, 0, 0.15); /* Sehr feine Trennlinie */
+            border-bottom: 1px solid rgba(255, 176, 0, 0.15);
         }
 
         .line { color: var(--led-on); }
@@ -145,11 +134,10 @@
         .marquee span { display: inline-block; padding-left: 0; animation: scroll 10s linear infinite; }
         @keyframes scroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 
-        /* Modernes Pulsieren statt hartem Blinken */
         .pulse { animation: modernPulse 1.5s ease-in-out infinite; }
         @keyframes modernPulse {
             0% { opacity: 1; }
-            50% { opacity: 0.3; } /* Nicht ganz aus, nur gedimmt */
+            50% { opacity: 0.3; }
             100% { opacity: 1; }
         }
 
@@ -162,7 +150,6 @@
             cursor: pointer; z-index: 20000;
             opacity: 0; transition: opacity 0.5s;
         }
-        /* Zeigen bei Hover über den Body (via JS geregelt) oder Hover über Button */
         #fs-toggle:hover { opacity: 1 !important; background: var(--led-on); color: black; }
 
     </style>
@@ -170,7 +157,6 @@
 <body>
 
     <div class="matrix-overlay"></div>
-
     <div id="lamp-test"></div>
 
     <div id="setup-screen">
@@ -178,14 +164,15 @@
         
         <div class="input-group">
             <label>Stadt</label>
-            <input type="text" id="city-input" placeholder="z.B. Kiel" value="Kiel">
+            <input type="text" id="city-input" placeholder="z.B. Koblenz" value="Koblenz">
         </div>
         <div class="input-group">
             <label>Haltestelle</label>
-            <input type="text" id="stop-input" placeholder="z.B. Hauptbahnhof" value="Hauptbahnhof">
+            <input type="text" id="stop-input" placeholder="z.B. Zentralplatz" value="Zentralplatz">
         </div>
         
         <button id="start-btn">ANZEIGE STARTEN</button>
+        <div id="error-msg"></div>
     </div>
 
     <div id="display-screen">
@@ -200,8 +187,7 @@
             <span>Abfahrt</span>
         </div>
 
-        <div id="matrix-rows">
-            </div>
+        <div id="matrix-rows"></div>
     </div>
 
     <button id="fs-toggle" onclick="toggleFullscreen()">Vollbild</button>
@@ -211,7 +197,6 @@
     let busData = [];
     let mouseTimer = null;
 
-    // --- FULLSCREEN & UI INTERACTION ---
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(e => console.log(e));
@@ -220,47 +205,59 @@
         }
     }
 
-    // Button ein/ausblenden Logic
     document.addEventListener('mousemove', () => {
         const btn = document.getElementById('fs-toggle');
         btn.style.opacity = '1';
         clearTimeout(mouseTimer);
-        mouseTimer = setTimeout(() => {
-            btn.style.opacity = '0';
-        }, 3000); // Nach 3 Sek ohne Bewegung ausblenden
+        mouseTimer = setTimeout(() => { btn.style.opacity = '0'; }, 3000);
     });
 
-    // --- SETUP & BOOT ---
     document.getElementById('start-btn').onclick = async () => {
         const city = document.getElementById('city-input').value;
         const stop = document.getElementById('stop-input').value;
         const btn = document.getElementById('start-btn');
+        const err = document.getElementById('error-msg');
 
-        if(!city || !stop) return;
+        if(!city || !stop) {
+            err.innerText = "Bitte beides ausfüllen.";
+            return;
+        }
 
         btn.innerText = "SUCHE STATION...";
+        err.innerText = "";
         
         try {
-            // 1. Station suchen
-            const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(city + " " + stop)}&results=1`);
+            // FIX: Wir suchen jetzt explizit nur nach STOPS (poi=false, addresses=false)
+            // Das verhindert, dass "Koblenz Zentralplatz" als Sehenswürdigkeit ohne Fahrplan gefunden wird.
+            const query = encodeURIComponent(city + " " + stop);
+            const res = await fetch(`https://v6.db.transport.rest/locations?query=${query}&results=5&poi=false&addresses=false`);
             const data = await res.json();
             
-            if(!data[0]) {
-                btn.innerText = "NICHT GEFUNDEN";
+            // Debugging (falls du F12 drückst)
+            console.log("Suchergebnisse:", data);
+
+            if(!data || data.length === 0) {
+                btn.innerText = "FEHLER";
+                err.innerText = "Haltestelle nicht gefunden. Versuche es genauer (z.B. 'Zentralplatz Forum').";
                 setTimeout(() => btn.innerText = "ANZEIGE STARTEN", 2000);
                 return;
             }
 
+            // Nimm den ersten Treffer
             stationID = data[0].id;
-            // Ortsnamen entfernen für saubereren Look (z.B. "Kiel, Hbf" -> "Hbf")
-            let cleanName = data[0].name.replace(city + ", ", "").replace(city + " ", "");
+            let cleanName = data[0].name;
+            
+            // Versuche den Stadtnamen aus dem Haltestellennamen zu entfernen für die Optik
+            // (RegEx Case Insensitive Replace)
+            const cityRegex = new RegExp(city + "[, ]*", "gi");
+            cleanName = cleanName.replace(cityRegex, "").trim();
+            
             document.getElementById('station-title').innerText = cleanName;
 
-            // 2. Boot Sequenz starten
+            // Erfolgreich -> Boot
             document.getElementById('setup-screen').style.display = 'none';
             triggerBootSequence();
 
-            // Wake Lock (damit Handy an bleibt)
             if ('wakeLock' in navigator) {
                 try { await navigator.wakeLock.request('screen'); } catch(e){}
             }
@@ -268,15 +265,14 @@
         } catch(e) {
             console.error(e);
             btn.innerText = "FEHLER";
+            err.innerText = "Netzwerkfehler oder API down.";
+            setTimeout(() => btn.innerText = "ANZEIGE STARTEN", 3000);
         }
     };
 
     function triggerBootSequence() {
-        // "Lampentest": Ein voller oranger Screen
         const testLayer = document.getElementById('lamp-test');
         testLayer.style.display = 'block';
-
-        // Nach 800ms ausschalten und Display zeigen
         setTimeout(() => {
             testLayer.style.display = 'none';
             document.getElementById('display-screen').style.display = 'flex';
@@ -286,37 +282,32 @@
 
     function startSystem() {
         updateData();
-        setInterval(updateData, 30000); // Alle 30sek neue Daten
-        setInterval(renderClock, 1000); // Jede Sekunde Uhr
+        setInterval(updateData, 30000); 
+        setInterval(renderClock, 1000);
         renderClock();
     }
 
-    // --- UHRZEIT ---
     function renderClock() {
         const now = new Date();
         const str = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
         document.getElementById('main-clock').innerText = str;
-        
-        // Jede Sekunde auch die "Minuten bis Abfahrt" aktualisieren, ohne neuen Fetch
         updateRelativeTimes(); 
     }
 
-    // --- DATEN LADEN ---
     async function updateData() {
         if(!stationID) return;
         try {
+            // Daten abrufen
             const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=15&duration=60`);
             const data = await res.json();
+            
+            if (!data.departures) return;
 
             const now = Date.now();
             
             busData = data.departures.map(dep => {
-                // Eindeutige ID generieren
                 const uniqueId = dep.tripId || (dep.line.name + dep.direction + dep.plannedWhen);
-                
-                // Existierenden Eintrag finden um Status zu behalten
                 const existing = busData.find(b => b.id === uniqueId);
-
                 const planned = new Date(dep.plannedWhen).getTime();
                 const actual = dep.when ? new Date(dep.when).getTime() : planned;
                 
@@ -326,42 +317,34 @@
                     dest: dep.direction,
                     time: actual,
                     cancelled: dep.cancelled || false,
-                    // Wenn der Bus schonmal "sofort" war, Zeit merken, damit er nicht sofort verschwindet
                     sofortSince: existing ? existing.sofortSince : null
                 };
             });
 
-            // Filtern: Alte Busse weg, aber "Sofort"-Busse noch kurz lassen
             busData = busData.filter(b => {
                 const diff = b.time - now;
                 if(diff <= 0) {
                     if(!b.sofortSince) b.sofortSince = now;
-                    if(now - b.sofortSince > 20000) return false; // 20 Sek nach Abfahrt löschen
+                    if(now - b.sofortSince > 30000) return false; 
                 }
                 return true;
             });
             
-            // Sortieren
             busData.sort((a,b) => a.time - b.time);
-
             renderMatrix();
 
-        } catch(e) { console.log("Fetch Error", e); }
+        } catch(e) { console.log("Update Error", e); }
     }
 
-    // --- RENDERING ---
     function renderMatrix() {
         const container = document.getElementById('matrix-rows');
-        
-        // HTML neu bauen
         container.innerHTML = '';
 
-        // Berechnen wie viele Zeilen passen
         const headerH = document.querySelector('.header').offsetHeight;
         const labelsH = document.querySelector('.labels').offsetHeight;
         const screenH = window.innerHeight;
-        const available = screenH - headerH - labelsH - 40; // 40px padding buffer
-        const rowHeight = window.innerHeight * 0.08; // Ca 8% der Höhe pro Zeile
+        const available = screenH - headerH - labelsH - 40; 
+        const rowHeight = window.innerHeight * 0.08; 
         
         const maxItems = Math.floor(available / rowHeight);
         const visibleData = busData.slice(0, maxItems);
@@ -369,18 +352,17 @@
         visibleData.forEach(bus => {
             const row = document.createElement('div');
             row.className = 'row';
-            if(bus.cancelled) row.style.color = '#ff3333'; // Rot bei Ausfall
+            if(bus.cancelled) row.style.color = '#ff3333'; 
 
-            // Marquee Logik für lange Ziele
             let destHTML = `<span class="dest-text">${bus.dest}</span>`;
-            if (bus.dest.length > 15) { // Einfache Heuristik
+            if (bus.dest.length > 15) { 
                  destHTML = `<span class="marquee"><span>${bus.dest}&nbsp;&nbsp;&nbsp;&nbsp;${bus.dest}&nbsp;&nbsp;&nbsp;&nbsp;</span></span>`;
             }
 
             row.innerHTML = `
                 <div class="line">${bus.line}</div>
                 <div class="dest">${destHTML}</div>
-                <div class="time" id="t-${bus.id}" data-time="${bus.time}" data-cancelled="${bus.cancelled}"></div>
+                <div class="time" id="t-${bus.id}"></div>
             `;
             container.appendChild(row);
         });
@@ -402,7 +384,6 @@
             const diffMin = Math.floor((bus.time - now) / 60000);
 
             if (diffMin <= 0) {
-                // Das moderne Blinken
                 el.innerHTML = 'sofort';
                 el.className = 'time pulse'; 
             } else if (diffMin > 60) {
@@ -416,7 +397,6 @@
         });
     }
     
-    // Resize Handler
     window.addEventListener('resize', () => { renderMatrix(); });
 
 </script>
