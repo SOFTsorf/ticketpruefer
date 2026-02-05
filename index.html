@@ -56,10 +56,31 @@
         /* KOPFZEILE */
         .header-area { flex: 0 0 auto; padding: 2vh 0 1vh 0; }
         
+        /* Neuer Container für Titel und Uhrzeit */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end; /* Unten bündig */
+            margin-bottom: 0.5vh;
+            border-bottom: 2px solid #222; /* Optional: Trennlinie nur unter Titel */
+            padding-bottom: 5px;
+        }
+
         .station-name { 
             font-family: 'Inter', sans-serif; 
             font-size: clamp(26px, 5.5vh, 55px); 
-            color: #eee; font-weight: 700; margin: 0 0 0.5vh 0; 
+            color: #eee; font-weight: 700; 
+            margin: 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        #header-clock {
+            font-family: 'Doto', sans-serif; /* Pixel Schrift */
+            font-size: clamp(20px, 4vh, 40px);
+            color: var(--led);
+            font-weight: 900;
+            margin-left: 20px;
+            white-space: nowrap;
         }
         
         .labels {
@@ -67,7 +88,7 @@
             font-family: 'Inter', sans-serif; 
             font-size: clamp(16px, 2.8vh, 30px); 
             color: #666;
-            text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 0.8vh;
+            text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 0.8vh; padding-top: 0.5vh;
         }
         .labels span:last-child { text-align: right; }
 
@@ -125,10 +146,16 @@
         <div id="fs-icon" onclick="toggleFullscreen()">
             <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
         </div>
+        
         <div class="header-area">
-            <p class="station-name" id="station-title">Lade...</p>
+            <div class="top-bar">
+                <p class="station-name" id="station-title">Lade...</p>
+                <div id="header-clock">00:00:00</div>
+            </div>
+            
             <div class="labels"><span>Linie</span><span>Ziel</span><span>Abfahrt</span></div>
         </div>
+        
         <div id="matrix"></div>
     </div>
 
@@ -179,24 +206,17 @@
     function startEngine() {
         updateData();
         setInterval(updateData, 30000);
-        setInterval(processLogic, 1000);
+        setInterval(processLogic, 1000); // Dieser Interval updated auch die Header-Uhr
         window.addEventListener('resize', renderFrame);
     }
 
     function sortData() {
         const now = Date.now();
         busData.sort((a, b) => {
-            // Ausgefallene Busse gelten NICHT als "sofort" für Boarding-Zwecke, 
-            // sollen aber zeitlich korrekt eingeordnet werden.
-            
-            // Ein Bus ist "Sofort-relevant", wenn er NICHT ausfällt UND (sofort-markiert ODER Zeit <= 0)
             const aIsSofort = !a.cancelled && (a.sofortSince || (a.time - now <= 0));
             const bIsSofort = !b.cancelled && (b.sofortSince || (b.time - now <= 0));
-
-            // Sofort immer vor Nicht-Sofort (aber Ausfälle bleiben in der normalen Zeit-Sortierung)
             if (aIsSofort && !bIsSofort) return -1; 
             if (!aIsSofort && bIsSofort) return 1;
-            
             return a.time - b.time;
         });
     }
@@ -210,22 +230,20 @@
             busData = data.departures.map(dep => {
                 const existing = busData.find(b => b.tripId === dep.tripId);
                 
-                // Hinweise sammeln (z.B. "Halt verlegt")
                 let hints = "";
                 if(dep.remarks && dep.remarks.length > 0) {
                     const txt = dep.remarks.filter(r => r.type === 'status' || r.type === 'warning').map(r => r.text).join(' +++ ');
                     if(txt) hints = " +++ " + txt;
                 }
 
-                // Verspätung berechnen (in Sekunden)
                 const delaySec = dep.delay || 0;
 
                 return {
                     tripId: dep.tripId || (dep.line.name + dep.direction + dep.when),
                     line: dep.line.name,
-                    dest: dep.direction + hints, // Hinweise ans Ziel anhängen
+                    dest: dep.direction + hints,
                     time: new Date(dep.when || dep.plannedWhen),
-                    cancelled: dep.cancelled || false, // API Flag für Ausfall
+                    cancelled: dep.cancelled || false,
                     delay: delaySec,
                     sofortSince: existing ? existing.sofortSince : null
                 };
@@ -240,13 +258,9 @@
         const now = Date.now();
         
         busData = busData.filter(bus => {
-            // Ausfälle bleiben maximal 60 Sekunden nach Abfahrtszeit sichtbar
-            // Normale Busse bleiben maximal 20 Sekunden im "Sofort"-Modus
             const timeDiff = bus.time - now;
-            
             if (timeDiff <= 0) {
                 if (bus.cancelled) {
-                     // Ausfälle etwas länger zeigen, damit man es merkt
                     return timeDiff > -60000; 
                 } else {
                     if (!bus.sofortSince) bus.sofortSince = now;
@@ -259,6 +273,15 @@
         sortData();
         renderFrame();
         updateClocks();
+        updateHeaderTime(); // Neue Funktion aufrufen
+    }
+    
+    // NEUE FUNKTION: Uhrzeit oben rechts
+    function updateHeaderTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const clockEl = document.getElementById('header-clock');
+        if (clockEl) clockEl.innerText = timeString;
     }
 
     function renderFrame() {
@@ -272,7 +295,6 @@
         
         const list = busData.slice(0, Math.max(1, maxRows));
         
-        // ID enthält jetzt auch cancelled status, damit neu gerendert wird bei Änderung
         const ids = list.map(b => b.tripId + b.cancelled + b.delay).join('|') + maxRows;
         
         if (container.dataset.ids === ids) return;
@@ -281,7 +303,6 @@
         container.innerHTML = '';
         list.forEach((bus, i) => {
             const row = document.createElement('div');
-            // Klasse 'cancelled' hinzufügen für rote Farbe
             row.className = `row ${bus.cancelled ? 'cancelled' : ''}`;
             
             row.innerHTML = `
@@ -314,24 +335,19 @@
             let html = '';
 
             if (bus.cancelled) {
-                // FALL 1: AUSFALL
                 html = '<span class="cancelled-msg">Entfällt</span>';
             } else {
-                // FALL 2: NORMALER BUS
                 const diffMin = Math.floor((bus.time - now) / 60000);
                 const isSofort = (bus.sofortSince || diffMin <= 0);
 
                 if (isSofort) {
                     html = '<span class="sofort">sofort</span>';
                 } else {
-                    // Prüfen ob Verspätung vorliegt (> 60 sek)
-                    // delay ist in Sekunden. 
                     let delayHtml = '';
                     if (bus.delay > 60) {
                         const delayMin = Math.floor(bus.delay / 60);
                         delayHtml = `<span class="delay-info">+ ${delayMin}</span>`;
                     } else if (bus.delay < -60) {
-                         // Zu früh (eher selten)
                          delayHtml = `<span class="delay-info">${Math.ceil(bus.delay/60)}</span>`;
                     }
 
