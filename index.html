@@ -32,8 +32,7 @@
         #setup-screen {
             position: fixed; inset: 0; background: #111; z-index: 2000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            font-family: 'Doto', sans-serif;
-            font-variation-settings: "ROND" 100;
+            font-family: 'Inter', sans-serif; color: white;
         }
         .input-group { margin: 15px; width: 80%; max-width: 400px; }
         .input-group input { 
@@ -77,7 +76,7 @@
             font-family: 'Doto', sans-serif;
             font-variation-settings: "ROND" 100;
             font-size: clamp(24px, 5vh, 50px);
-            color: var(--led); /* Gleiche Farbe wie die Abfahrten */
+            color: var(--led); 
             font-weight: 900;
             margin-left: 20px;
             letter-spacing: 2px;
@@ -136,7 +135,9 @@
 <body>
 
     <div id="setup-screen">
-        <h2 style="margin-bottom: 20px;">StatusAnzeige für koveb / VRM</h2>
+    <h1>koveb/VRM Anzeige</h1>,    
+font-family: 'Doto', sans-serif;
+            font-variation-settings: "ROND" 100;
         <div class="input-group"><input type="text" id="city-input" placeholder="Stadt"></div>
         <div class="input-group"><input type="text" id="stop-input" placeholder="Haltestelle"></div>
         <button id="start-btn">Anzeige starten</button>
@@ -204,6 +205,7 @@
         updateData();
         updateHeaderClock();
         setInterval(updateData, 30000);
+        // Die Logik wird jede Sekunde ausgeführt, um das "sofort" Timing zu prüfen
         setInterval(processLogic, 1000);
         setInterval(updateHeaderClock, 1000);
         window.addEventListener('resize', renderFrame);
@@ -219,14 +221,17 @@
     }
 
     function sortData() {
-        const now = Date.now();
+        // Sortierung angepasst: Verlässt sich jetzt rein auf das 'sofortSince' Flag,
+        // das in processLogic gesetzt wird.
         busData.sort((a, b) => {
-            const aIsSofort = !a.cancelled && (a.sofortSince || (a.time - now <= 0));
-            const bIsSofort = !b.cancelled && (b.sofortSince || (b.time - now <= 0));
+            const aIsSofort = !a.cancelled && a.sofortSince;
+            const bIsSofort = !b.cancelled && b.sofortSince;
 
+            // "Sofort"-Busse immer zuerst
             if (aIsSofort && !bIsSofort) return -1; 
             if (!aIsSofort && bIsSofort) return 1;
             
+            // Ansonsten nach normaler Zeit
             return a.time - b.time;
         });
     }
@@ -238,6 +243,7 @@
             const data = await res.json();
             
             busData = data.departures.map(dep => {
+                // Prüfen, ob dieser Bus schon in der alten Liste war, um den Timer-Status zu behalten
                 const existing = busData.find(b => b.tripId === dep.tripId);
                 
                 let hints = "";
@@ -255,35 +261,55 @@
                     time: new Date(dep.when || dep.plannedWhen),
                     cancelled: dep.cancelled || false, 
                     delay: delaySec,
+                    // Übernehme den Startzeitpunkt des "sofort"-Timers, falls vorhanden
                     sofortSince: existing ? existing.sofortSince : null
                 };
             });
             
-            sortData();
-            renderFrame();
+            // Nach dem Laden der neuen Daten sofort die Logik ausführen, 
+            // um Timer zu starten und zu sortieren.
+            processLogic(); 
         } catch(e) {}
     }
 
+    // WICHTIG: Diese Funktion steuert das Verschwinden nach 20 Sekunden
     function processLogic() {
         const now = Date.now();
-        
-        busData = busData.filter(bus => {
+
+        // SCHRITT 1: Identifiziere Busse, die JETZT "sofort" werden
+        busData.forEach(bus => {
+            if (bus.cancelled || bus.sofortSince) return; // Bereits behandelt
+
             const timeDiff = bus.time - now;
-            
-            if (timeDiff <= 0) {
-                if (bus.cancelled) {
-                    return timeDiff > -60000; 
-                } else {
-                    if (!bus.sofortSince) bus.sofortSince = now;
-                    return (now - bus.sofortSince) <= 20000;
-                }
+            // Wenn weniger als 60 Sekunden bis zur Abfahrt (oder schon vorbei),
+            // starte den 20-Sekunden-Timer, indem wir den aktuellen Zeitstempel speichern.
+            if (timeDiff <= 60000) {
+                 bus.sofortSince = now;
             }
-            return true;
+        });
+        
+        // SCHRITT 2: Filtern der Liste
+        busData = busData.filter(bus => {
+            // Ausfälle bleiben noch 60s sichtbar, damit man sie wahrnimmt
+            if (bus.cancelled) {
+                return (bus.time - now) > -60000; 
+            }
+
+            // Normale Busse prüfen
+            if (bus.sofortSince) {
+                // Wenn der "sofort"-Timer läuft, prüfe ob 20 Sekunden (20000ms) vergangen sind.
+                // Wenn ja, fliegt der Bus aus der Liste (return false).
+                return (now - bus.sofortSince) < 20000;
+            } else {
+                // Bus liegt noch weiter in der Zukunft, behalten.
+                return true;
+            }
         });
 
         sortData();
         renderFrame();
-        updateClocks();
+        // Clocks updaten, damit die Anzeige (Min vs. sofort) synchron zur Logik ist
+        updateClocks(); 
     }
 
     function renderFrame() {
@@ -354,6 +380,8 @@
                 html = '<span class="cancelled-msg">Entfällt</span>';
             } else {
                 const diffMin = Math.floor((bus.time - now) / 60000);
+                // Ein Bus ist "sofort", wenn sein Timer läuft ODER rechnerisch 0 Min verbleiben.
+                // Dies deckt sich jetzt mit der Logik in processLogic.
                 const isSofort = (bus.sofortSince || diffMin <= 0);
 
                 if (isSofort) {
