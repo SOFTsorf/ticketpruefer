@@ -2,20 +2,20 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DFI Live-Anzeige Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dynamisches DFI Display</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Doto:wght,ROND@800,100&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Doto:wght,ROND@900,100&family=Inter:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
             --led: #ffaa00;
             --bg: #000;
-            /* Feste Spaltenbreiten für absolute Stabilität */
-            --col-line: 140px; 
-            --col-time: 200px;
+            --col-line: 18vw; 
+            --col-time: 22vw;
+            --row-height: 11vh; /* Ziel-Höhe pro Zeile */
         }
 
         body, html {
@@ -23,118 +23,86 @@
             background: var(--bg);
             color: var(--led);
             font-family: 'Doto', sans-serif;
-            font-variation-settings: "ROND" 100;
+            font-variation-settings: "ROND" 100; /* Punkt-Optik */
             overflow: hidden;
             width: 100vw; height: 100vh;
         }
 
         /* SETUP SCREEN */
         #setup-screen {
-            position: fixed; inset: 0;
-            background: #111; z-index: 2000;
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
+            position: fixed; inset: 0; background: #111; z-index: 2000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
             font-family: 'Inter', sans-serif; color: white;
         }
-
         .input-group { margin: 15px; width: 80%; max-width: 400px; }
-        .input-group label { display: block; margin-bottom: 5px; color: #888; }
         .input-group input { 
             width: 100%; padding: 12px; background: #222; border: 1px solid #444;
-            color: white; border-radius: 8px; font-size: 1.1rem;
+            color: white; border-radius: 8px; font-size: 1.1rem; box-sizing: border-box;
+        }
+        #start-btn { padding: 12px 30px; background: var(--led); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: black; }
+
+        /* MAIN DISPLAY */
+        #display-screen { 
+            display: none; flex-direction: column; height: 100vh; width: 100vw; 
+            box-sizing: border-box; padding: 0 2vw;
         }
 
-        #start-btn {
-            padding: 12px 30px; background: var(--led); border: none;
-            border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem;
-            margin-top: 20px;
-        }
-
-        /* DISPLAY SCREEN */
-        #display-screen { display: none; flex-direction: column; height: 100vh; padding: 0 20px; }
-
-        #fs-icon {
-            position: fixed; top: 15px; right: 15px; z-index: 100;
-            color: #333; cursor: pointer; opacity: 0.5;
-        }
+        #fs-icon { position: fixed; top: 10px; right: 10px; z-index: 100; color: #222; cursor: pointer; }
         :fullscreen #fs-icon { display: none; }
 
-        .header-title {
-            font-family: 'Inter', sans-serif; font-size: 40px;
-            padding: 20px 0; color: #eee; font-weight: 700;
-        }
-
+        .header-area { flex: 0 0 auto; padding-top: 2vh; }
+        .station-name { font-family: 'Inter', sans-serif; font-size: 3.5vh; color: #eee; font-weight: 700; margin: 0 0 1vh 0; }
+        
         .labels {
             display: grid; grid-template-columns: var(--col-line) 1fr var(--col-time);
-            font-family: 'Inter', sans-serif; font-size: 18px; color: #444;
-            padding-bottom: 10px; text-transform: uppercase; border-bottom: 2px solid #111;
+            font-family: 'Inter', sans-serif; font-size: 1.8vh; color: #444;
+            text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 0.5vh;
         }
         .labels span:last-child { text-align: right; }
 
+        /* MATRIX: Hier landen die dynamischen Zeilen */
+        #matrix { 
+            flex: 1 1 auto; display: flex; flex-direction: column; 
+            overflow: hidden;
+        }
+
         .row {
+            flex: 1; 
             display: grid; grid-template-columns: var(--col-line) 1fr var(--col-time);
-            align-items: center; height: 12vh; border-bottom: 1px solid #0a0a0a;
-            font-size: 6.5vh;
+            align-items: center; border-bottom: 1px solid #0a0a0a;
+            font-size: 6vh; /* Skaliert mit der Höhe */
+            min-height: 0; 
         }
 
-        .line-cell { font-weight: 900; }
+        .line-cell { font-weight: 900; white-space: nowrap; overflow: hidden; padding-right: 10px; }
 
-        /* SCROLL LOGIK */
-        .dest-cell { 
-            overflow: hidden; 
-            white-space: nowrap; 
-            display: flex; 
-            position: relative;
-            margin-right: 20px;
-        }
+        .dest-cell { overflow: hidden; white-space: nowrap; display: flex; position: relative; margin-right: 15px; }
+        .marquee-content { display: inline-block; will-change: transform; }
+        
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-scroll { animation: marquee 12s linear infinite; }
 
-        .marquee-content {
-            display: inline-block;
-            will-change: transform;
-        }
-
-        @keyframes marquee {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); }
-        }
-
-        .animate-scroll {
-            animation: marquee 12s linear infinite;
-        }
-
-        .time-cell { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-        .sofort {
-            text-transform: lowercase; font-size: 0.9em;
-            animation: blink 1s steps(2, start) infinite;
-        }
+        .time-cell { text-align: right; font-variant-numeric: tabular-nums; }
+        .sofort { text-transform: lowercase; font-size: 0.8em; animation: blink 1s steps(2, start) infinite; }
         @keyframes blink { to { visibility: hidden; } }
     </style>
 </head>
 <body>
 
     <div id="setup-screen">
-        <h1 style="margin-bottom: 30px;">Haltestellen-Konfiguration</h1>
-        <div class="input-group">
-            <label>Stadt</label>
-            <input type="text" id="city-input" placeholder="z.B. Koblenz">
-        </div>
-        <div class="input-group">
-            <label>Haltestelle</label>
-            <input type="text" id="stop-input" placeholder="z.B. Zentralplatz">
-        </div>
+        <h2 style="margin-bottom: 20px;">Anzeige konfigurieren</h2>
+        <div class="input-group"><input type="text" id="city-input" placeholder="Stadt (z.B. Koblenz)"></div>
+        <div class="input-group"><input type="text" id="stop-input" placeholder="Haltestelle (z.B. Zentralplatz)"></div>
         <button id="start-btn">Anzeige starten</button>
     </div>
 
     <div id="display-screen">
         <div id="fs-icon" onclick="document.documentElement.requestFullscreen()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
         </div>
-        <div class="header-title" id="station-title">Lade...</div>
-        <div class="labels">
-            <span>Linie</span>
-            <span>Ziel</span>
-            <span>Abfahrt</span>
+        <div class="header-area">
+            <p class="station-name" id="station-title">Lade...</p>
+            <div class="labels"><span>Linie</span><span>Ziel</span><span>Abfahrt</span></div>
         </div>
         <div id="matrix"></div>
     </div>
@@ -142,39 +110,51 @@
 <script>
     let stationID = null;
     let busData = [];
-    const MAX_ROWS = 7;
+    let maxRows = 6;
+
+    // Berechnet wie viele Zeilen auf den Bildschirm passen
+    function calculateRows() {
+        const headerHeight = document.querySelector('.header-area').offsetHeight;
+        const availableHeight = window.innerHeight - headerHeight - 20;
+        const rowHeightPx = window.innerHeight * 0.11; // 11vh als Basis
+        maxRows = Math.floor(availableHeight / rowHeightPx);
+        if(maxRows < 1) maxRows = 1;
+        renderFrame();
+    }
+
+    window.addEventListener('resize', calculateRows);
 
     document.getElementById('start-btn').onclick = async () => {
-        const city = document.getElementById('city-input').value;
-        const stop = document.getElementById('stop-input').value;
-        if(!city || !stop) return;
-
+        const query = `${document.getElementById('city-input').value} ${document.getElementById('stop-input').value}`;
         try {
-            const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(city + " " + stop)}&results=1`);
+            const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(query)}&results=1`);
             const data = await res.json();
-            if(!data[0]) return alert("Nicht gefunden!");
+            if(!data[0]) return alert("Haltestelle nicht gefunden!");
             
             stationID = data[0].id;
             document.getElementById('station-title').innerText = data[0].name;
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('display-screen').style.display = 'flex';
             
-            startTicker();
-        } catch(e) { alert("Fehler!"); }
+            // Initial berechnen und starten
+            setTimeout(calculateRows, 100);
+            startEngine();
+        } catch(e) { alert("Verbindungsfehler!"); }
     };
 
-    function startTicker() {
-        updateAPI();
-        setInterval(updateAPI, 30000); // Alle 30s Daten holen
-        setInterval(logicTick, 1000);  // Jede Sekunde Logik prüfen
+    function startEngine() {
+        updateData();
+        setInterval(updateData, 30000);
+        setInterval(processLogic, 1000);
     }
 
-    async function updateAPI() {
+    async function updateData() {
+        if(!stationID) return;
         try {
             const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=15&duration=60`);
             const data = await res.json();
-            
             const now = Date.now();
+            
             busData = data.departures.map(dep => {
                 const existing = busData.find(b => b.tripId === dep.tripId);
                 return {
@@ -185,89 +165,80 @@
                     sofortSince: existing ? existing.sofortSince : null
                 };
             });
-            renderRows();
+            renderFrame();
         } catch(e) {}
     }
 
-    function logicTick() {
+    function processLogic() {
         const now = Date.now();
-        let changed = false;
-
+        let needsRedraw = false;
+        
         busData = busData.filter(bus => {
-            const diff = bus.time - now;
-            if (diff <= 0) {
+            if (bus.time - now <= 0) {
                 if (!bus.sofortSince) bus.sofortSince = now;
-                // Wenn mehr als 20 Sek auf "sofort", dann löschen
-                if ((now - bus.sofortSince) > 20000) {
-                    changed = true;
-                    return false;
+                if ((now - bus.sofortSince) > 20000) { 
+                    needsRedraw = true; 
+                    return false; 
                 }
             }
             return true;
         });
 
-        if (changed) renderRows();
-        updateTimesOnly();
+        if (needsRedraw) renderFrame();
+        updateClocks();
     }
 
-    function renderRows() {
-        const matrix = document.getElementById('matrix');
-        const displayList = busData.slice(0, MAX_ROWS);
+    function renderFrame() {
+        const container = document.getElementById('matrix');
+        if(!container) return;
         
-        // Verhindert Flackern: Nur neu bauen, wenn sich die Busse ändern
-        const currentIds = displayList.map(b => b.tripId).join('|');
-        if (matrix.dataset.lastIds === currentIds) return;
-        matrix.dataset.lastIds = currentIds;
+        const list = busData.slice(0, maxRows);
+        const ids = list.map(b => b.tripId).join('|') + maxRows;
+        
+        if (container.dataset.ids === ids) return;
+        container.dataset.ids = ids;
 
-        matrix.innerHTML = '';
-        displayList.forEach((bus, i) => {
+        container.innerHTML = '';
+        list.forEach((bus, i) => {
             const row = document.createElement('div');
             row.className = 'row';
             row.innerHTML = `
                 <div class="line-cell">${bus.line}</div>
-                <div class="dest-cell" id="cell-${i}">
-                    <span class="marquee-content" id="text-${i}">${bus.dest}</span>
-                </div>
-                <div class="time-cell" id="time-${i}">--:--</div>
+                <div class="dest-cell" id="c-${i}"><span class="marquee-content" id="m-${i}">${bus.dest}</span></div>
+                <div class="time-cell" id="t-${i}">--:--</div>
             `;
-            matrix.appendChild(row);
-
-            // PRÜFUNG: Muss es scrollen?
-            const container = document.getElementById(`cell-${i}`);
-            const text = document.getElementById(`text-${i}`);
+            container.appendChild(row);
             
-            // Kleiner Timeout damit der Browser die Breite berechnen kann
+            // Scroll-Check: Nur wenn Text breiter als die Zelle ist
             setTimeout(() => {
-                if (text.offsetWidth > container.offsetWidth) {
-                    // Text ist zu lang -> Scrollen aktivieren
-                    text.innerHTML = `${bus.dest} &nbsp;&nbsp;&nbsp;&nbsp; ${bus.dest} &nbsp;&nbsp;&nbsp;&nbsp;`;
-                    text.classList.add('animate-scroll');
-                } else {
-                    // Text passt -> Kein Scrollen
-                    text.classList.remove('animate-scroll');
+                const m = document.getElementById(`m-${i}`);
+                const c = document.getElementById(`c-${i}`);
+                if (m && c && m.offsetWidth > c.offsetWidth) {
+                    m.innerHTML = `${bus.dest} &nbsp;&nbsp;&nbsp;&nbsp; ${bus.dest} &nbsp;&nbsp;&nbsp;&nbsp;`;
+                    m.classList.add('animate-scroll');
                 }
-            }, 50);
+            }, 100);
         });
+        updateClocks();
     }
 
-    function updateTimesOnly() {
+    function updateClocks() {
         const now = Date.now();
-        busData.slice(0, MAX_ROWS).forEach((bus, i) => {
-            const el = document.getElementById(`time-${i}`);
+        busData.slice(0, maxRows).forEach((bus, i) => {
+            const el = document.getElementById(`t-${i}`);
             if(!el) return;
-
             const diffMin = Math.floor((bus.time - now) / 60000);
-            let html = "";
-
-            if(bus.sofortSince) {
-                html = '<span class="sofort">sofort</span>';
-            } else if(diffMin < 20) {
-                html = diffMin + " Min";
+            
+            let val = "";
+            if (bus.sofortSince) {
+                val = '<span class="sofort">sofort</span>';
+            } else if (diffMin < 20) {
+                val = diffMin + " Min";
             } else {
-                html = bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+                val = bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
             }
-
-            if(el.innerHTML !== html) el.innerHTML = html;
+            
+            if(el.innerHTML !== val) el.innerHTML = val;
         });
     }
 </script>
