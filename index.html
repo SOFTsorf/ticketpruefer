@@ -3,198 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IBIS-IP Ticket Validator</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
-    
+    <title>DFI Christuskirche Koblenz</title>
     <style>
-        :root {
-            --vrm-blue: #005293;
-            --success-green: #28a745;
-            --error-red: #dc3545;
+        @font-face {
+            font-family: 'LED-Dot';
+            src: url('https://fonts.cdnfonts.com/s/18211/DOTMATRI.woff') format('woff');
         }
+
+        :root {
+            --led-orange: #ff9d00;
+            --led-bg: #050505;
+        }
+
         body {
-            font-family: 'Segoe UI', Roboto, sans-serif;
-            background-color: #e9ecef;
+            background-color: #222;
             margin: 0;
             display: flex;
-            flex-direction: column;
+            justify-content: center;
             align-items: center;
-        }
-        header {
-            background-color: var(--vrm-blue);
-            color: white;
-            width: 100%;
-            padding: 15px 0;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        .container {
-            width: 95%;
-            max-width: 500px;
-            margin-top: 20px;
-        }
-        #reader {
-            background: white;
-            border-radius: 12px;
+            height: 100vh;
             overflow: hidden;
-            border: none !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-        .result-card {
-            background: white;
-            border-radius: 12px;
+
+        /* Das Gehäuse der Anzeige */
+        .dfi-case {
+            background-color: #444;
             padding: 20px;
-            margin-top: 20px;
-            display: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            text-align: center;
+            border-radius: 10px;
+            border: 6px solid #333;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            width: 90vw;
+            max-width: 800px;
         }
-        .status-icon {
-            font-size: 50px;
+
+        .display-screen {
+            background-color: var(--led-bg);
+            padding: 20px;
+            border: 2px solid #222;
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            color: #ddd;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .table-head {
+            display: grid;
+            grid-template-columns: 80px 1fr 120px;
+            color: #888;
+            font-family: Arial, sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
             margin-bottom: 10px;
         }
-        .valid { border-left: 8px solid var(--success-green); }
-        .invalid { border-left: 8px solid var(--error-red); }
-        
-        .ticket-info {
-            text-align: left;
-            margin-top: 15px;
-            font-size: 14px;
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 5px;
+
+        .departure-row {
+            display: grid;
+            grid-template-columns: 80px 1fr 120px;
+            color: var(--led-orange);
+            font-family: 'Courier New', Courier, monospace; /* Fallback für LED Font */
+            font-size: 2rem;
+            line-height: 1.2;
+            text-shadow: 0 0 5px var(--led-orange);
+            margin-bottom: 10px;
         }
-        .raw-data {
-            font-family: monospace;
-            font-size: 10px;
-            color: #666;
-            word-break: break-all;
-            margin-top: 10px;
-        }
-        button {
-            background: var(--vrm-blue);
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            width: 100%;
-            font-weight: bold;
-            margin-top: 10px;
-        }
+
+        .line { font-weight: bold; }
+        .destination { text-transform: uppercase; overflow: hidden; white-space: nowrap; }
+        .time { text-align: right; }
+
+        #clock { color: var(--led-orange); }
     </style>
 </head>
 <body>
 
-<header>
-    <h1>D-Ticket Prüfer</h1>
-    <small>IBIS-IP TicketValidationService v2.4</small>
-</header>
+<div class="dfi-case">
+    <div class="display-screen">
+        <div class="header">
+            <span>Koblenz Christuskirche</span>
+            <span id="clock">17:18</span>
+        </div>
+        
+        <div class="table-head">
+            <span>Linie</span>
+            <span>Ziel</span>
+            <span style="text-align: right;">Abfahrt</span>
+        </div>
 
-<div class="container">
-    <div id="reader"></div>
-    
-    <div id="resultCard" class="result-card">
-        <div id="statusIcon" class="status-icon"></div>
-        <h2 id="statusText"></h2>
-        <div id="ticketDetails" class="ticket-info"></div>
-        <div class="raw-data" id="rawData"></div>
-        <button onclick="resetScanner()">Nächster Scan</button>
-    </div>
-
-    <div style="margin-top: 15px;">
-        <button id="nfcBtn">NFC Scan (Nur Android/Chrome)</button>
+        <div id="departure-list">
+            </div>
     </div>
 </div>
 
 <script>
-    // Konfiguration gemäß IBIS-IP_TicketValidationService_V2.4.xsd
-    const html5QrCode = new Html5Qrcode("reader");
-    const resultCard = document.getElementById('resultCard');
-    const statusText = document.getElementById('statusText');
-    const statusIcon = document.getElementById('statusIcon');
-    const ticketDetails = document.getElementById('ticketDetails');
-    const rawData = document.getElementById('rawData');
+    // Live-Daten Simulation für Koblenz Christuskirche
+    const mockDepartures = [
+        { line: "2/12", destination: "Karthause", time: "3 Min" },
+        { line: "5", destination: "Metternich", time: "14:09" },
+        { line: "8", destination: "Bendorf", time: "14:10" },
+        { line: "27", destination: "Asterstein", time: "14:25" },
+        { line: "9", destination: "Immendorf", time: "14:39" },
+        { line: "15", destination: "Rübenach", time: "14:40" }
+    ];
 
-    const qrConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-    async function startScanner() {
-        html5QrCode.start(
-            { facingMode: "environment" }, 
-            qrConfig,
-            onScanSuccess
-        );
-    }
-
-    function onScanSuccess(decodedText) {
-        // Scanner pausieren
-        html5QrCode.pause(true);
+    function updateDisplay() {
+        const list = document.getElementById('departure-list');
+        const clock = document.getElementById('clock');
         
-        // Simuliere IBIS-IP TicketValidation Logik
-        processValidation(decodedText);
+        // Uhrzeit aktualisieren
+        const now = new Date();
+        clock.innerText = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+        // Liste bauen
+        list.innerHTML = mockDepartures.map(dep => `
+            <div class="departure-row">
+                <span class="line">${dep.line}</span>
+                <span class="destination">${dep.destination}</span>
+                <span class="time">${dep.time}</span>
+            </div>
+        `).join('');
     }
 
-    function processValidation(data) {
-        resultCard.style.display = "block";
-        rawData.innerText = "Raw: " + data.substring(0, 100) + "...";
-
-        // Logik basierend auf VDV-Standards
-        let isVDV = data.includes("#UT01") || data.includes("#OT01");
-        
-        if (isVDV) {
-            showResult(true, "GÜLTIG", {
-                "Typ": "Deutschlandticket (VDV-KA)",
-                "Klasse": "2. Klasse",
-                "Inhaber": "Ermittelt aus Barcode...",
-                "Prüfung": "Signatur ok (Simuliert)"
-            });
-        } else {
-            showResult(false, "UNGÜLTIG", {
-                "Fehler": "Kein gültiger VDV-Barcode erkannt.",
-                "Info": "Bitte Aztec-Code scannen."
-            });
-        }
-    }
-
-    function showResult(isValid, text, details) {
-        resultCard.className = "result-card " + (isValid ? "valid" : "invalid");
-        statusIcon.innerText = isValid ? "✅" : "❌";
-        statusText.innerText = text;
-        statusText.style.color = isValid ? "var(--success-green)" : "var(--error-red)";
-        
-        let html = "";
-        for (let key in details) {
-            html += `<strong>${key}:</strong> ${details[key]}<br>`;
-        }
-        ticketDetails.innerHTML = html;
-    }
-
-    function resetScanner() {
-        resultCard.style.display = "none";
-        html5QrCode.resume();
-    }
-
-    // NFC Fallback Logik
-    document.getElementById('nfcBtn').addEventListener('click', async () => {
-        if ('NDEFReader' in window) {
-            try {
-                const ndef = new NDEFReader();
-                await ndef.scan();
-                alert("NFC aktiv. Karte anhalten!");
-                ndef.onreading = event => {
-                    processValidation("NFC_CHIP_DATA_" + event.serialNumber);
-                };
-            } catch (error) {
-                alert("NFC Fehler: " + error);
-            }
-        } else {
-            alert("Web NFC wird nicht unterstützt (iPhone/Safari blockiert dies).");
-        }
-    });
-
-    // Start
-    startScanner();
+    // Initialisierung
+    updateDisplay();
+    // Alle 30 Sekunden aktualisieren
+    setInterval(updateDisplay, 30000);
 </script>
 
 </body>
