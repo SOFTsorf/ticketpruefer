@@ -4,93 +4,68 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DFI Koblenz Christuskirche LIVE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Doto:wght@900&display=swap" rel="stylesheet">
+    
     <style>
         :root {
             --bg: #000000;
             --text: #ffffff;
-            --accent: #ffcc00;
-            --row-border: #222;
+            --accent: #ff9d00; /* Originales Bernstein-Orange */
         }
 
         body {
             background-color: var(--bg);
             color: var(--text);
-            font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
+            font-family: 'Doto', sans-serif;
             margin: 0;
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden;
+            font-variation-settings: "ROND" 100;
         }
 
-        /* Header */
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1.5rem 2rem;
+            padding: 1rem 2rem;
             background: #111;
-            border-bottom: 5px solid var(--accent);
+            border-bottom: 4px solid var(--accent);
         }
 
-        .station {
-            font-size: clamp(1.5rem, 5vw, 2.5rem);
-            font-weight: 800;
-            text-transform: uppercase;
-        }
+        .station { font-size: clamp(1.2rem, 4vw, 2rem); text-transform: uppercase; }
+        #clock { font-size: clamp(1.2rem, 4vw, 2rem); color: var(--accent); }
 
-        #clock {
-            font-size: clamp(1.5rem, 5vw, 2.5rem);
-            color: var(--accent);
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* Tabelle */
         .labels {
             display: grid;
             grid-template-columns: 100px 1fr 150px;
-            padding: 1rem 2rem;
+            padding: 0.5rem 2rem;
             background: #222;
             color: #888;
-            text-transform: uppercase;
-            font-size: 1rem;
-            letter-spacing: 2px;
+            font-size: 0.9rem;
         }
 
-        #board {
-            flex-grow: 1;
-            overflow-y: auto;
-        }
+        #board { flex-grow: 1; }
 
         .row {
             display: grid;
             grid-template-columns: 100px 1fr 150px;
-            padding: 1.2rem 2rem;
-            border-bottom: 1px solid var(--row-border);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #222;
             align-items: center;
-            font-size: clamp(1.2rem, 4vw, 2rem);
-            font-weight: 600;
+            font-size: clamp(1.8rem, 6vw, 2.8rem);
         }
 
-        .line { color: var(--accent); font-weight: 900; }
-        .dest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 10px; }
-        .eta { text-align: right; font-weight: 800; }
+        .line { color: var(--accent); }
+        .dest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .eta { text-align: right; }
 
-        /* Blinken für "sofort" */
-        .blink {
-            color: var(--accent);
-            animation: flash 1s steps(2, start) infinite;
-        }
-
+        .blink { animation: flash 1s steps(2, start) infinite; color: var(--accent); }
         @keyframes flash { to { visibility: hidden; } }
 
-        .loader {
-            padding: 50px;
-            text-align: center;
-            color: var(--accent);
-            font-style: italic;
-        }
+        .loader { padding: 50px; text-align: center; color: var(--accent); font-size: 1.5rem; }
     </style>
 </head>
 <body>
@@ -107,72 +82,60 @@
     </div>
 
     <div id="board">
-        <div class="loader">Hole Echtzeitdaten vom VRM-Server...</div>
+        <div class="loader">Verbinde mit Echtzeit-Proxy...</div>
     </div>
 
 <script>
-    const stopId = "de:07111:400"; // Christuskirche
+    const stopId = "de:07111:400"; 
     const board = document.getElementById('board');
-    const clock = document.getElementById('clock');
 
-    // 1. Uhrzeit-Update (jede Sekunde)
     function updateClock() {
-        clock.innerText = new Date().toLocaleTimeString('de-DE');
+        document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE');
     }
 
-    // 2. Daten vom Server holen
     async function refreshData() {
+        // Wir nutzen den AllOrigins Proxy, um die CORS-Sperre zu umgehen
+        const apiUrl = `https://v5.db.transport.rest/stops/${stopId}/departures?duration=60&results=10`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+
         try {
-            // Wir nutzen einen Proxy, um das Lade-Problem (CORS) zu umgehen
-            const response = await fetch(`https://v5.db.transport.rest/stops/${stopId}/departures?duration=60&results=12`);
-            const data = await response.json();
+            const response = await fetch(proxyUrl);
+            const wrapper = await response.json();
+            const data = JSON.parse(wrapper.contents); // Die eigentlichen Daten liegen im "contents" Feld
 
             if (!data || data.length === 0) {
-                board.innerHTML = '<div class="loader">Momentan keine Abfahrten.</div>';
+                board.innerHTML = '<div class="loader">Keine aktuellen Abfahrten gefunden.</div>';
                 return;
             }
 
-            renderBoard(data);
+            board.innerHTML = "";
+            const now = new Date();
+
+            data.forEach(dep => {
+                const plannedTime = new Date(dep.when || dep.plannedWhen);
+                const diffMin = Math.round((plannedTime - now) / 60000);
+                
+                const row = document.createElement('div');
+                row.className = 'row';
+
+                let timeOutput = diffMin <= 0 ? '<span class="blink">sofort</span>' : (diffMin > 59 ? plannedTime.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}) : diffMin + ' min');
+
+                row.innerHTML = `
+                    <div class="line">${dep.line?.name || '???'}</div>
+                    <div class="dest">${(dep.direction || 'Unbekannt').toUpperCase()}</div>
+                    <div class="eta">${timeOutput}</div>
+                `;
+                board.appendChild(row);
+            });
         } catch (err) {
-            console.error(err);
-            board.innerHTML = '<div class="loader" style="color:red">Verbindung gestört. Erneuter Versuch...</div>';
+            console.error("Fehler:", err);
+            board.innerHTML = `<div class="loader" style="color:red">Server-Fehler. Versuche Proxy-Wechsel...</div>`;
         }
     }
 
-    function renderBoard(deps) {
-        board.innerHTML = "";
-        const now = new Date();
-
-        deps.forEach(dep => {
-            const plannedTime = new Date(dep.when || dep.plannedWhen);
-            const diffMin = Math.round((plannedTime - now) / 60000);
-            
-            const row = document.createElement('div');
-            row.className = 'row';
-
-            let timeOutput;
-            if (diffMin <= 0) {
-                timeOutput = '<span class="blink">sofort</span>';
-            } else if (diffMin > 45) {
-                timeOutput = plannedTime.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
-            } else {
-                timeOutput = diffMin + ' min';
-            }
-
-            row.innerHTML = `
-                <div class="line">${dep.line?.name || '???'}</div>
-                <div class="dest">${(dep.direction || 'Unbekannt').toUpperCase()}</div>
-                <div class="eta">${timeOutput}</div>
-            `;
-            board.appendChild(row);
-        });
-    }
-
-    // Intervalle
     setInterval(updateClock, 1000);
-    setInterval(refreshData, 30000); // Alle 30 Sek. neue Daten
+    setInterval(refreshData, 30000);
 
-    // Start
     updateClock();
     refreshData();
 </script>
