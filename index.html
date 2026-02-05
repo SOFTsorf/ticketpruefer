@@ -13,8 +13,8 @@
         :root {
             --led: #ffaa00;
             --bg: #000;
-            --col-line: 18vw; 
-            --col-time: 22vw;
+            --col-line: 20vw; 
+            --col-time: 25vw;
         }
 
         body, html {
@@ -46,25 +46,28 @@
             box-sizing: border-box; padding: 0 3vw;
         }
 
-        #fs-icon { position: fixed; top: 15px; right: 15px; z-index: 100; color: #333; cursor: pointer; opacity: 0.5; }
+        /* VOLLBILD BUTTON FIX */
+        #fs-icon { 
+            position: fixed; top: 15px; right: 15px; z-index: 100; 
+            color: #333; cursor: pointer; opacity: 0.6;
+            background: rgba(255,255,255,0.05); padding: 5px; border-radius: 5px;
+        }
 
-        /* KOPFZEILE ANPASSUNG */
-        .header-area { flex: 0 0 auto; padding: 2vh 0; }
+        /* KOPFZEILE */
+        .header-area { flex: 0 0 auto; padding: 2vh 0 1vh 0; }
         
         .station-name { 
             font-family: 'Inter', sans-serif; 
-            /* Passt sich an, wird aber nicht kleiner als 24px und nicht größer als 50px */
-            font-size: clamp(24px, 5vh, 50px); 
-            color: #eee; font-weight: 700; margin: 0 0 1vh 0; 
+            font-size: clamp(26px, 5.5vh, 55px); 
+            color: #eee; font-weight: 700; margin: 0 0 0.5vh 0; 
         }
         
         .labels {
             display: grid; grid-template-columns: var(--col-line) 1fr var(--col-time);
             font-family: 'Inter', sans-serif; 
-            /* Überschriften etwas größer und gedeckelt */
-            font-size: clamp(14px, 2.5vh, 28px); 
-            color: #555;
-            text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 1vh;
+            font-size: clamp(16px, 2.8vh, 30px); 
+            color: #666;
+            text-transform: uppercase; border-bottom: 2px solid #111; padding-bottom: 0.8vh;
         }
         .labels span:last-child { text-align: right; }
 
@@ -74,7 +77,7 @@
         .row {
             flex: 1; display: grid; grid-template-columns: var(--col-line) 1fr var(--col-time);
             align-items: center; border-bottom: 1px solid #0a0a0a;
-            font-size: 5.5vh; min-height: 0; 
+            font-size: 6vh; min-height: 0; 
         }
 
         .line-cell { font-weight: 900; white-space: nowrap; overflow: hidden; padding-right: 15px; }
@@ -95,12 +98,12 @@
         <h2 style="margin-bottom: 20px;">DFI Simulator</h2>
         <div class="input-group"><input type="text" id="city-input" placeholder="Stadt"></div>
         <div class="input-group"><input type="text" id="stop-input" placeholder="Haltestelle"></div>
-        <button id="start-btn">Anzeige aktivieren</button>
+        <button id="start-btn">Anzeige starten</button>
     </div>
 
     <div id="display-screen">
-        <div id="fs-icon" onclick="document.documentElement.requestFullscreen()">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        <div id="fs-icon" onclick="toggleFullscreen()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
         </div>
         <div class="header-area">
             <p class="station-name" id="station-title">Lade...</p>
@@ -114,27 +117,38 @@
     let busData = [];
     let wakeLock = null;
 
-    // Funktion um das Ausschalten des Bildschirms zu verhindern
-    async function requestWakeLock() {
-        if ('wakeLock' in navigator) {
-            try {
-                wakeLock = await navigator.wakeLock.request('screen');
-                console.log("Wake Lock ist aktiv - Bildschirm bleibt an.");
-            } catch (err) {
-                console.error("Wake Lock Fehler:", err);
-            }
+    // Verbessertes Vollbild-Handling
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                alert(`Fehler beim Vollbild: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
         }
     }
 
-    // Wenn der Tab gewechselt wird und man zurückkommt, Lock erneuern
-    document.addEventListener('visibilitychange', () => {
-        if (wakeLock !== null && document.visibilityState === 'visible') {
-            requestWakeLock();
+    // Lauscht auf Vollbild-Änderungen und versteckt den Button
+    document.addEventListener('fullscreenchange', () => {
+        const btn = document.getElementById('fs-icon');
+        if (document.fullscreenElement) {
+            btn.style.display = 'none';
+        } else {
+            btn.style.display = 'block';
         }
+        renderFrame(); // Zeilenanzahl bei Größenänderung neu berechnen
     });
 
+    async function requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+        }
+    }
+
     document.getElementById('start-btn').onclick = async () => {
-        const query = `${document.getElementById('city-input').value} ${document.getElementById('stop-input').value}`;
+        const city = document.getElementById('city-input').value;
+        const stop = document.getElementById('stop-input').value;
+        const query = `${city} ${stop}`;
         try {
             const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(query)}&results=1`);
             const data = await res.json();
@@ -145,7 +159,7 @@
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('display-screen').style.display = 'flex';
             
-            requestWakeLock(); // Wachbleiben aktivieren
+            requestWakeLock();
             startEngine();
         } catch(e) { alert("Verbindungsfehler!"); }
     };
@@ -163,7 +177,6 @@
             const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=15&duration=60`);
             const data = await res.json();
             const now = Date.now();
-            
             busData = data.departures.map(dep => {
                 const existing = busData.find(b => b.tripId === dep.tripId);
                 return {
@@ -194,9 +207,13 @@
 
     function renderFrame() {
         const container = document.getElementById('matrix');
-        const headerHeight = document.querySelector('.header-area').offsetHeight;
-        const rowHeightPx = window.innerHeight * 0.11;
-        const maxRows = Math.floor((window.innerHeight - headerHeight - 20) / rowHeightPx);
+        const headerArea = document.querySelector('.header-area');
+        if(!container || !headerArea) return;
+
+        // Dynamische Zeilenberechnung basierend auf dem verfügbaren Platz
+        const availableHeight = window.innerHeight - headerArea.offsetHeight - 20;
+        const rowHeightTarget = window.innerHeight * 0.12; 
+        const maxRows = Math.floor(availableHeight / rowHeightTarget);
         
         const list = busData.slice(0, Math.max(1, maxRows));
         const ids = list.map(b => b.tripId).join('|') + maxRows;
@@ -229,8 +246,8 @@
 
     function updateClocks() {
         const now = Date.now();
-        const timeCells = document.querySelectorAll('.time-cell');
-        busData.slice(0, timeCells.length).forEach((bus, i) => {
+        const rows = document.querySelectorAll('.time-cell');
+        busData.slice(0, rows.length).forEach((bus, i) => {
             const el = document.getElementById(`t-${i}`);
             if(!el) return;
             const diffMin = Math.floor((bus.time - now) / 60000);
