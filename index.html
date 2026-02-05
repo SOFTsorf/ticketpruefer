@@ -3,146 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIVE DFI Koblenz Christuskirche</title>
+    <title>DFI Koblenz Christuskirche LIVE</title>
     <style>
         :root {
-            --display-bg: #000000;
-            --text-color: #ffffff;
-            --highlight: #ffcc00;
+            --bg: #000000;
+            --text: #ffffff;
+            --accent: #ffcc00;
+            --row-border: #222;
         }
 
         body {
-            background-color: var(--display-bg);
-            color: var(--text-color);
-            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
             margin: 0;
-            height: 100vh;
             display: flex;
             flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
         }
 
+        /* Header */
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px 40px;
-            background-color: #1a1a1a;
-            border-bottom: 4px solid var(--highlight);
+            padding: 1.5rem 2rem;
+            background: #111;
+            border-bottom: 5px solid var(--accent);
         }
 
-        .station-name { font-size: 2.5rem; font-weight: bold; }
-        #clock { font-size: 2.5rem; font-weight: bold; color: var(--highlight); }
+        .station {
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+            font-weight: 800;
+            text-transform: uppercase;
+        }
 
-        .table-header {
+        #clock {
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+            color: var(--accent);
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Tabelle */
+        .labels {
             display: grid;
-            grid-template-columns: 150px 1fr 200px;
-            padding: 15px 40px;
+            grid-template-columns: 100px 1fr 150px;
+            padding: 1rem 2rem;
             background: #222;
-            color: #aaa;
-            font-size: 1.2rem;
+            color: #888;
+            text-transform: uppercase;
+            font-size: 1rem;
+            letter-spacing: 2px;
         }
 
-        #departure-list { flex-grow: 1; }
+        #board {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
 
-        .departure-row {
+        .row {
             display: grid;
-            grid-template-columns: 150px 1fr 200px;
-            padding: 20px 40px;
-            border-bottom: 1px solid #333;
-            font-size: 2.2rem;
+            grid-template-columns: 100px 1fr 150px;
+            padding: 1.2rem 2rem;
+            border-bottom: 1px solid var(--row-border);
+            align-items: center;
+            font-size: clamp(1.2rem, 4vw, 2rem);
+            font-weight: 600;
         }
 
-        .line { color: var(--highlight); font-weight: bold; }
-        .time { text-align: right; font-weight: bold; }
+        .line { color: var(--accent); font-weight: 900; }
+        .dest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 10px; }
+        .eta { text-align: right; font-weight: 800; }
 
-        .sofort {
-            color: var(--highlight);
-            animation: blink 1s steps(2, start) infinite;
+        /* Blinken für "sofort" */
+        .blink {
+            color: var(--accent);
+            animation: flash 1s steps(2, start) infinite;
         }
 
-        @keyframes blink { to { visibility: hidden; } }
+        @keyframes flash { to { visibility: hidden; } }
 
-        .error-msg { color: red; padding: 20px; text-align: center; font-size: 1.5rem; }
+        .loader {
+            padding: 50px;
+            text-align: center;
+            color: var(--accent);
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <div class="station-name">Koblenz Christuskirche</div>
+        <div class="station">Koblenz Christuskirche</div>
         <div id="clock">--:--:--</div>
     </div>
 
-    <div class="table-header">
+    <div class="labels">
         <span>Linie</span>
         <span>Ziel</span>
         <span style="text-align: right;">Abfahrt</span>
     </div>
 
-    <div id="departure-list">
-        <div class="error-msg">Initialisiere Live-Daten...</div>
+    <div id="board">
+        <div class="loader">Hole Echtzeitdaten vom VRM-Server...</div>
     </div>
 
 <script>
-    // Diese Funktion holt ECHTE Daten über eine offene Schnittstelle (Transport API)
-    async function fetchLiveDepartures() {
-        const stopId = "de:07111:400"; // Offizielle ID für Koblenz Christuskirche
-        const list = document.getElementById('departure-list');
+    const stopId = "de:07111:400"; // Christuskirche
+    const board = document.getElementById('board');
+    const clock = document.getElementById('clock');
 
+    // 1. Uhrzeit-Update (jede Sekunde)
+    function updateClock() {
+        clock.innerText = new Date().toLocaleTimeString('de-DE');
+    }
+
+    // 2. Daten vom Server holen
+    async function refreshData() {
         try {
-            // Wir nutzen die offizielle API für den VRM Bereich (via Transport.rest)
-            const response = await fetch(`https://v5.db.transport.rest/stops/${stopId}/departures?duration=60&results=8`);
+            // Wir nutzen einen Proxy, um das Lade-Problem (CORS) zu umgehen
+            const response = await fetch(`https://v5.db.transport.rest/stops/${stopId}/departures?duration=60&results=12`);
             const data = await response.json();
 
             if (!data || data.length === 0) {
-                list.innerHTML = '<div class="error-msg">Aktuell keine Abfahrten geplant.</div>';
+                board.innerHTML = '<div class="loader">Momentan keine Abfahrten.</div>';
                 return;
             }
 
-            list.innerHTML = "";
-            data.forEach(dep => {
-                const row = document.createElement('div');
-                row.className = 'departure-row';
-
-                // Zeit berechnen
-                const now = new Date();
-                const planned = new Date(dep.when || dep.plannedWhen);
-                const diffMs = planned - now;
-                const diffMin = Math.round(diffMs / 60000);
-
-                let timeDisplay;
-                if (diffMin <= 0) {
-                    timeDisplay = '<span class="sofort">sofort</span>';
-                } else if (diffMin > 60) {
-                    timeDisplay = planned.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
-                } else {
-                    timeDisplay = diffMin + ' min';
-                }
-
-                row.innerHTML = `
-                    <div class="line">${dep.line?.name || "???"}</div>
-                    <div class="destination">${dep.direction || "Unbekannt"}</div>
-                    <div class="time">${timeDisplay}</div>
-                `;
-                list.appendChild(row);
-            });
-        } catch (error) {
-            console.error("API Fehler:", error);
-            // Wenn die API klemmt, zeigen wir wenigstens eine Info
-            list.innerHTML = '<div class="error-msg">Verbindung zum VRM-Server unterbrochen...</div>';
+            renderBoard(data);
+        } catch (err) {
+            console.error(err);
+            board.innerHTML = '<div class="loader" style="color:red">Verbindung gestört. Erneuter Versuch...</div>';
         }
     }
 
-    // Uhrzeit jede Sekunde
-    function updateClock() {
-        document.getElementById('clock').innerText = new Date().toLocaleTimeString('de-DE');
+    function renderBoard(deps) {
+        board.innerHTML = "";
+        const now = new Date();
+
+        deps.forEach(dep => {
+            const plannedTime = new Date(dep.when || dep.plannedWhen);
+            const diffMin = Math.round((plannedTime - now) / 60000);
+            
+            const row = document.createElement('div');
+            row.className = 'row';
+
+            let timeOutput;
+            if (diffMin <= 0) {
+                timeOutput = '<span class="blink">sofort</span>';
+            } else if (diffMin > 45) {
+                timeOutput = plannedTime.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+            } else {
+                timeOutput = diffMin + ' min';
+            }
+
+            row.innerHTML = `
+                <div class="line">${dep.line?.name || '???'}</div>
+                <div class="dest">${(dep.direction || 'Unbekannt').toUpperCase()}</div>
+                <div class="eta">${timeOutput}</div>
+            `;
+            board.appendChild(row);
+        });
     }
 
-    // Intervalle starten
+    // Intervalle
     setInterval(updateClock, 1000);
-    setInterval(fetchLiveDepartures, 30000); // Alle 30 Sek. neue Bus-Daten ziehen
+    setInterval(refreshData, 30000); // Alle 30 Sek. neue Daten
 
+    // Start
     updateClock();
-    fetchLiveDepartures();
+    refreshData();
 </script>
 
 </body>
