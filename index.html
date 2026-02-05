@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live DFI Zentralplatz</title>
+    <title>DFI Zentralplatz Pure</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,123 +11,112 @@
 
     <style>
         :root {
-            --led-color: #ffaa00;
-            --bg-color: #000000;
+            --led: #ffaa00;
+            --bg: #000;
+            /* Spaltenbreiten fest definieren gegen Überlappung */
+            --col-line: 15vw;
+            --col-time: 22vw;
         }
-
-        * { box-sizing: border-box; }
 
         body, html {
             margin: 0; padding: 0;
-            width: 100vw; height: 100vh;
-            background-color: var(--bg-color);
-            color: var(--led-color);
+            background: var(--bg);
+            color: var(--led);
             font-family: 'Doto', sans-serif;
             font-variation-settings: "ROND" 100;
             overflow: hidden;
+            width: 100vw; height: 100vh;
         }
 
-        /* Vollbild-Button (verschwindet im Vollbild) */
         #fs-icon {
-            position: fixed; top: 15px; right: 15px;
-            z-index: 1000; color: #333; cursor: pointer;
-            background: rgba(255,255,255,0.05);
-            padding: 5px; border-radius: 5px;
+            position: fixed; top: 10px; right: 10px; z-index: 100;
+            color: #222; cursor: pointer; background: none; border: none;
         }
         :fullscreen #fs-icon { display: none; }
 
-        .screen {
+        .container {
             display: flex; flex-direction: column;
-            height: 100vh; width: 100vw;
-            padding: 0 3vw;
+            height: 100vh; padding: 0 2vw;
         }
 
-        /* Labels */
         .labels {
             display: grid;
-            grid-template-columns: 12vw 1fr 18vw;
+            grid-template-columns: var(--col-line) 1fr var(--col-time);
             font-family: 'Inter', sans-serif;
-            font-size: 2.2vh;
-            color: #333;
-            padding: 2vh 0 1vh 0;
-            text-transform: uppercase;
-            border-bottom: 1px solid #111;
+            font-size: 2.5vh; color: #333;
+            padding: 2vh 0 1vh 0; text-transform: uppercase;
+            border-bottom: 2px solid #111;
         }
         .labels span:last-child { text-align: right; }
 
-        /* Zeilen-Layout */
+        /* Zeilen-System */
         .row {
             display: grid;
-            grid-template-columns: 12vw 1fr 18vw;
+            grid-template-columns: var(--col-line) 1fr var(--col-time);
             align-items: center;
-            height: 11vh;
+            height: 12vh;
             border-bottom: 1px solid #0a0a0a;
-            font-size: 6.5vh;
-            white-space: nowrap;
+            font-size: 7vh;
         }
 
-        .line { font-weight: 900; }
+        .line-cell { font-weight: 900; overflow: hidden; }
 
-        /* Smooth Scroll Bereich */
-        .dest-wrapper {
+        /* Fix für das Scrollen */
+        .dest-cell {
             overflow: hidden;
+            white-space: nowrap;
             position: relative;
+            display: flex;
         }
 
-        .scroll-text {
+        .scroll-wrapper {
             display: inline-block;
             will-change: transform;
         }
 
-        /* Sanfte Animation für den Text */
-        @keyframes scrollSmooth {
+        @keyframes marquee {
             0% { transform: translateX(0); }
-            10% { transform: translateX(0); }
-            90% { transform: translateX(calc(-50% - 20px)); }
-            100% { transform: translateX(calc(-50% - 20px)); }
+            100% { transform: translateX(-50%); }
         }
 
-        .animate {
-            animation: scrollSmooth 12s linear infinite;
+        .animate-scroll {
+            animation: marquee 12s linear infinite;
         }
 
-        .time {
+        .time-cell {
             text-align: right;
             font-variant-numeric: tabular-nums;
+            white-space: nowrap;
         }
 
-        /* "sofort" klein und blinkend */
         .sofort {
             text-transform: lowercase;
-            font-size: 0.9em;
-            animation: led-blink 1s steps(2, start) infinite;
+            font-size: 0.85em;
+            animation: blink 1s steps(2, start) infinite;
         }
 
-        @keyframes led-blink {
-            to { visibility: hidden; }
-        }
+        @keyframes blink { to { visibility: hidden; } }
     </style>
 </head>
 <body>
 
-    <div id="fs-icon" onclick="document.documentElement.requestFullscreen()">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-    </div>
+    <button id="fs-icon" onclick="document.documentElement.requestFullscreen()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+    </button>
 
-    <div class="screen">
+    <div class="container">
         <div class="labels">
             <span>Linie</span>
             <span>Ziel</span>
             <span>Abfahrt</span>
         </div>
-        <div id="matrix">
-            </div>
+        <div id="matrix"></div>
     </div>
 
 <script>
     const STATION_NAME = "Koblenz Zentralplatz Forum";
     let stationID = null;
-    let departures = [];
+    let busData = []; // Speichert Bus-Objekte inkl. "Sofort-Timer"
 
     async function init() {
         try {
@@ -135,71 +124,96 @@
             const data = await res.json();
             stationID = data[0].id;
             
-            await updateData(); 
-            setInterval(updateData, 30000); 
-            setInterval(refreshTimes, 1000); 
-        } catch (e) { console.error("Fehler beim Start", e); }
+            fetchUpdate();
+            setInterval(fetchUpdate, 30000); // Neue Daten alle 30s
+            setInterval(logicTick, 1000);    // Logik & Render jede Sekunde
+        } catch (e) { console.error("API Error", e); }
     }
 
-    async function updateData() {
-        if (!stationID) return;
+    async function fetchUpdate() {
+        if(!stationID) return;
         try {
-            const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=8&duration=60`);
+            const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=10&duration=60`);
             const data = await res.json();
-            departures = data.departures;
-            renderMatrix(); 
-        } catch (e) { console.error("API-Fehler", e); }
+            
+            // Abgleichen mit vorhandenen Bussen, um Timer zu behalten
+            const newList = data.departures.map(dep => {
+                const existing = busData.find(b => b.tripId === dep.tripId);
+                return {
+                    tripId: dep.tripId || (dep.line.name + dep.direction + dep.when),
+                    line: dep.line.name,
+                    dest: dep.direction,
+                    time: new Date(dep.when || dep.plannedWhen),
+                    sofortSince: existing ? existing.sofortSince : null
+                };
+            });
+            busData = newList;
+        } catch (e) { console.error("Update Error", e); }
     }
 
-    function renderMatrix() {
-        const matrix = document.getElementById('matrix');
-        matrix.innerHTML = '';
-
-        departures.forEach((dep, i) => {
-            const row = document.createElement('div');
-            row.className = 'row';
-            
-            const destText = dep.direction;
-            
-            row.innerHTML = `
-                <span class="line">${dep.line.name}</span>
-                <div class="dest-wrapper">
-                    <span class="scroll-text" id="t-${i}">${destText}</span>
-                </div>
-                <span class="time" id="time-${i}">--:--</span>
-            `;
-            matrix.appendChild(row);
-
-            // Scroll-Check
-            setTimeout(() => {
-                const el = document.getElementById(`t-${i}`);
-                if (el && el.offsetWidth > el.parentElement.offsetWidth) {
-                    el.innerHTML = `${destText} &nbsp;&nbsp;&nbsp;&nbsp; ${destText}`;
-                    el.classList.add('animate');
-                }
-            }, 50);
-        });
-        refreshTimes(); 
-    }
-
-    function refreshTimes() {
+    function logicTick() {
         const now = new Date();
-        departures.forEach((dep, i) => {
-            const timeEl = document.getElementById(`time-${i}`);
-            if (!timeEl) return;
-
-            const timeObj = new Date(dep.when || dep.plannedWhen);
-            const diffMin = Math.floor((timeObj - now) / 60000);
-
-            if (diffMin <= 1) {
-                // Falls "sofort" noch nicht drin steht, setzen (um Flackern zu vermeiden)
-                if (!timeEl.innerHTML.includes('sofort')) {
-                    timeEl.innerHTML = '<span class="sofort">sofort</span>';
+        
+        // 1. Logik: Sofort-Timer prüfen und abgelaufene Busse markieren
+        busData = busData.filter(bus => {
+            const diffMin = Math.floor((bus.time - now) / 60000);
+            
+            if (diffMin <= 0) {
+                if (!bus.sofortSince) {
+                    bus.sofortSince = now.getTime(); // Jetzt fängt die "sofort" Zeit an
                 }
+                
+                // Wenn mehr als 20 Sekunden vergangen sind seit "sofort", löschen
+                const secondsPassed = (now.getTime() - bus.sofortSince) / 1000;
+                if (secondsPassed > 20) return false; 
+            }
+            return true;
+        });
+
+        render();
+    }
+
+    function render() {
+        const matrix = document.getElementById('matrix');
+        const now = new Date();
+        
+        // Damit Animationen nicht springen, bauen wir das HTML nur bei Änderungen neu
+        // Oder wir nutzen ein stabiles Render-System:
+        let html = '';
+
+        busData.slice(0, 7).forEach((bus, i) => {
+            const diffMin = Math.floor((bus.time - now) / 60000);
+            let timeStr = "";
+
+            if (bus.sofortSince) {
+                timeStr = '<span class="sofort">sofort</span>';
             } else if (diffMin < 20) {
-                timeEl.innerText = diffMin + ' Min';
+                timeStr = diffMin + ' Min';
             } else {
-                timeEl.innerText = timeObj.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+                timeStr = bus.time.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'});
+            }
+
+            html += `
+                <div class="row">
+                    <div class="line-cell">${bus.line}</div>
+                    <div class="dest-cell" id="dc-${i}">
+                        <div class="scroll-wrapper" id="sw-${i}">${bus.dest}</div>
+                    </div>
+                    <div class="time-cell">${timeStr}</div>
+                </div>
+            `;
+        });
+
+        matrix.innerHTML = html;
+
+        // Scroll-Animation triggern
+        busData.slice(0, 7).forEach((bus, i) => {
+            const wrapper = document.getElementById(`sw-${i}`);
+            const cell = document.getElementById(`dc-${i}`);
+            if (wrapper && cell && wrapper.offsetWidth > cell.offsetWidth) {
+                // Text verdoppeln für nahtlosen Loop
+                wrapper.innerHTML = `${bus.dest} &nbsp;&nbsp;&nbsp;&nbsp; ${bus.dest} &nbsp;&nbsp;&nbsp;&nbsp;`;
+                wrapper.classList.add('animate-scroll');
             }
         });
     }
