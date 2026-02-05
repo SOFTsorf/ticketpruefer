@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DFI Pro - Always On</title>
+    <title>DFI Pro - Status & Ausfälle</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +11,8 @@
 
     <style>
         :root {
-            --led: #ffaa00;
+            --led: #ffaa00;     /* Standard Orange */
+            --led-red: #ff3333; /* Alarm/Ausfall Rot */
             --bg: #000;
             --col-line: 20vw; 
             --col-time: 25vw;
@@ -46,7 +47,6 @@
             box-sizing: border-box; padding: 0 3vw;
         }
 
-        /* VOLLBILD BUTTON FIX */
         #fs-icon { 
             position: fixed; top: 15px; right: 15px; z-index: 100; 
             color: #333; cursor: pointer; opacity: 0.6;
@@ -78,6 +78,7 @@
             flex: 1; display: grid; grid-template-columns: var(--col-line) 1fr var(--col-time);
             align-items: center; border-bottom: 1px solid #0a0a0a;
             font-size: 6vh; min-height: 0; 
+            position: relative;
         }
 
         .line-cell { font-weight: 900; white-space: nowrap; overflow: hidden; padding-right: 15px; }
@@ -87,15 +88,34 @@
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-scroll { animation: marquee 14s linear infinite; }
 
-        .time-cell { text-align: right; font-variant-numeric: tabular-nums; }
+        /* ZEIT & STATUS STYLES */
+        .time-cell { 
+            text-align: right; font-variant-numeric: tabular-nums; 
+            display: flex; flex-direction: column; justify-content: center; align-items: flex-end;
+        }
+        
         .sofort { text-transform: lowercase; font-size: 0.85em; animation: blink 1s steps(2, start) infinite; }
+        
+        /* Styles für Ausfälle */
+        .row.cancelled { color: var(--led-red); }
+        .row.cancelled .dest-cell { text-decoration: line-through; opacity: 0.7; }
+        .cancelled-msg { font-size: 0.6em; text-transform: uppercase; animation: blink-red 2s infinite; }
+
+        /* Styles für Verspätung */
+        .delay-info { 
+            font-size: 0.35em; font-family: 'Inter', sans-serif; font-weight: bold;
+            color: var(--led-red); margin-bottom: -5px; display: block;
+        }
+
         @keyframes blink { to { visibility: hidden; } }
+        @keyframes blink-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
     </style>
 </head>
 <body>
 
     <div id="setup-screen">
-        <h2 style="margin-bottom: 20px;">DFI Simulator</h2>
+        <h2 style="margin-bottom: 20px;">DFI Simulator Pro</h2>
         <div class="input-group"><input type="text" id="city-input" placeholder="Stadt"></div>
         <div class="input-group"><input type="text" id="stop-input" placeholder="Haltestelle"></div>
         <button id="start-btn">Anzeige starten</button>
@@ -117,26 +137,18 @@
     let busData = [];
     let wakeLock = null;
 
-    // Verbessertes Vollbild-Handling
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => {
-                alert(`Fehler beim Vollbild: ${err.message}`);
-            });
+            document.documentElement.requestFullscreen().catch(err => alert(err.message));
         } else {
             document.exitFullscreen();
         }
     }
 
-    // Lauscht auf Vollbild-Änderungen und versteckt den Button
     document.addEventListener('fullscreenchange', () => {
         const btn = document.getElementById('fs-icon');
-        if (document.fullscreenElement) {
-            btn.style.display = 'none';
-        } else {
-            btn.style.display = 'block';
-        }
-        renderFrame(); // Zeilenanzahl bei Größenänderung neu berechnen
+        btn.style.display = document.fullscreenElement ? 'none' : 'block';
+        renderFrame();
     });
 
     async function requestWakeLock() {
@@ -171,37 +183,81 @@
         window.addEventListener('resize', renderFrame);
     }
 
+    function sortData() {
+        const now = Date.now();
+        busData.sort((a, b) => {
+            // Ausgefallene Busse gelten NICHT als "sofort" für Boarding-Zwecke, 
+            // sollen aber zeitlich korrekt eingeordnet werden.
+            
+            // Ein Bus ist "Sofort-relevant", wenn er NICHT ausfällt UND (sofort-markiert ODER Zeit <= 0)
+            const aIsSofort = !a.cancelled && (a.sofortSince || (a.time - now <= 0));
+            const bIsSofort = !b.cancelled && (b.sofortSince || (b.time - now <= 0));
+
+            // Sofort immer vor Nicht-Sofort (aber Ausfälle bleiben in der normalen Zeit-Sortierung)
+            if (aIsSofort && !bIsSofort) return -1; 
+            if (!aIsSofort && bIsSofort) return 1;
+            
+            return a.time - b.time;
+        });
+    }
+
     async function updateData() {
         if(!stationID) return;
         try {
-            const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=15&duration=60`);
+            const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=20&duration=60&remarks=true`);
             const data = await res.json();
-            const now = Date.now();
+            
             busData = data.departures.map(dep => {
                 const existing = busData.find(b => b.tripId === dep.tripId);
+                
+                // Hinweise sammeln (z.B. "Halt verlegt")
+                let hints = "";
+                if(dep.remarks && dep.remarks.length > 0) {
+                    const txt = dep.remarks.filter(r => r.type === 'status' || r.type === 'warning').map(r => r.text).join(' +++ ');
+                    if(txt) hints = " +++ " + txt;
+                }
+
+                // Verspätung berechnen (in Sekunden)
+                const delaySec = dep.delay || 0;
+
                 return {
                     tripId: dep.tripId || (dep.line.name + dep.direction + dep.when),
                     line: dep.line.name,
-                    dest: dep.direction,
+                    dest: dep.direction + hints, // Hinweise ans Ziel anhängen
                     time: new Date(dep.when || dep.plannedWhen),
+                    cancelled: dep.cancelled || false, // API Flag für Ausfall
+                    delay: delaySec,
                     sofortSince: existing ? existing.sofortSince : null
                 };
             });
+            
+            sortData();
             renderFrame();
         } catch(e) {}
     }
 
     function processLogic() {
         const now = Date.now();
-        let needsRedraw = false;
+        
         busData = busData.filter(bus => {
-            if (bus.time - now <= 0) {
-                if (!bus.sofortSince) bus.sofortSince = now;
-                if ((now - bus.sofortSince) > 20000) { needsRedraw = true; return false; }
+            // Ausfälle bleiben maximal 60 Sekunden nach Abfahrtszeit sichtbar
+            // Normale Busse bleiben maximal 20 Sekunden im "Sofort"-Modus
+            const timeDiff = bus.time - now;
+            
+            if (timeDiff <= 0) {
+                if (bus.cancelled) {
+                     // Ausfälle etwas länger zeigen, damit man es merkt
+                    return timeDiff > -60000; 
+                } else {
+                    if (!bus.sofortSince) bus.sofortSince = now;
+                    return (now - bus.sofortSince) <= 20000;
+                }
             }
             return true;
         });
-        if (needsRedraw) renderFrame();
+
+        sortData();
+        renderFrame();
         updateClocks();
     }
 
@@ -210,13 +266,14 @@
         const headerArea = document.querySelector('.header-area');
         if(!container || !headerArea) return;
 
-        // Dynamische Zeilenberechnung basierend auf dem verfügbaren Platz
         const availableHeight = window.innerHeight - headerArea.offsetHeight - 20;
         const rowHeightTarget = window.innerHeight * 0.12; 
         const maxRows = Math.floor(availableHeight / rowHeightTarget);
         
         const list = busData.slice(0, Math.max(1, maxRows));
-        const ids = list.map(b => b.tripId).join('|') + maxRows;
+        
+        // ID enthält jetzt auch cancelled status, damit neu gerendert wird bei Änderung
+        const ids = list.map(b => b.tripId + b.cancelled + b.delay).join('|') + maxRows;
         
         if (container.dataset.ids === ids) return;
         container.dataset.ids = ids;
@@ -224,11 +281,13 @@
         container.innerHTML = '';
         list.forEach((bus, i) => {
             const row = document.createElement('div');
-            row.className = 'row';
+            // Klasse 'cancelled' hinzufügen für rote Farbe
+            row.className = `row ${bus.cancelled ? 'cancelled' : ''}`;
+            
             row.innerHTML = `
                 <div class="line-cell">${bus.line}</div>
                 <div class="dest-cell" id="c-${i}"><span class="marquee-content" id="m-${i}">${bus.dest}</span></div>
-                <div class="time-cell" id="t-${i}">--:--</div>
+                <div class="time-cell" id="t-${i}">--</div>
             `;
             container.appendChild(row);
             
@@ -247,13 +306,45 @@
     function updateClocks() {
         const now = Date.now();
         const rows = document.querySelectorAll('.time-cell');
+        
         busData.slice(0, rows.length).forEach((bus, i) => {
             const el = document.getElementById(`t-${i}`);
             if(!el) return;
-            const diffMin = Math.floor((bus.time - now) / 60000);
-            let val = bus.sofortSince ? '<span class="sofort">sofort</span>' : 
-                      (diffMin < 20 ? diffMin + " Min" : bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}));
-            if(el.innerHTML !== val) el.innerHTML = val;
+
+            let html = '';
+
+            if (bus.cancelled) {
+                // FALL 1: AUSFALL
+                html = '<span class="cancelled-msg">Entfällt</span>';
+            } else {
+                // FALL 2: NORMALER BUS
+                const diffMin = Math.floor((bus.time - now) / 60000);
+                const isSofort = (bus.sofortSince || diffMin <= 0);
+
+                if (isSofort) {
+                    html = '<span class="sofort">sofort</span>';
+                } else {
+                    // Prüfen ob Verspätung vorliegt (> 60 sek)
+                    // delay ist in Sekunden. 
+                    let delayHtml = '';
+                    if (bus.delay > 60) {
+                        const delayMin = Math.floor(bus.delay / 60);
+                        delayHtml = `<span class="delay-info">+ ${delayMin}</span>`;
+                    } else if (bus.delay < -60) {
+                         // Zu früh (eher selten)
+                         delayHtml = `<span class="delay-info">${Math.ceil(bus.delay/60)}</span>`;
+                    }
+
+                    if (diffMin < 20) {
+                        html = `${delayHtml}${diffMin} Min`;
+                    } else {
+                        const timeStr = bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+                        html = `${delayHtml}${timeStr}`;
+                    }
+                }
+            }
+            
+            if(el.innerHTML !== html) el.innerHTML = html;
         });
     }
 </script>
