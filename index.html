@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DFI Pro - Status & Ausfälle</title>
+    <title>StatusAnzeige für Bus&Bahn koveb | VRM</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,8 +11,8 @@
 
     <style>
         :root {
-            --led: #ffaa00;     
-            --led-red: #ff3333; 
+            --led: #ffaa00;     /* Standard Orange */
+            --led-red: #ff3333; /* Alarm/Ausfall Rot */
             --bg: #000;
             --col-line: 20vw; 
             --col-time: 25vw;
@@ -32,7 +32,8 @@
         #setup-screen {
             position: fixed; inset: 0; background: #111; z-index: 2000;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            font-family: 'Inter', sans-serif; color: white;
+            font-family: 'Doto', sans-serif;
+            font-variation-settings: "ROND" 100;
         }
         .input-group { margin: 15px; width: 80%; max-width: 400px; }
         .input-group input { 
@@ -53,6 +54,7 @@
             background: rgba(255,255,255,0.05); padding: 5px; border-radius: 5px;
         }
 
+        /* KOPFZEILE */
         .header-area { flex: 0 0 auto; padding: 2vh 0 1vh 0; }
         
         .header-top {
@@ -70,11 +72,12 @@
             flex: 1;
         }
 
+        /* UHR IN PIXEL-OPTIK */
         #current-time {
             font-family: 'Doto', sans-serif;
             font-variation-settings: "ROND" 100;
             font-size: clamp(24px, 5vh, 50px);
-            color: var(--led); 
+            color: var(--led); /* Gleiche Farbe wie die Abfahrten */
             font-weight: 900;
             margin-left: 20px;
             letter-spacing: 2px;
@@ -89,6 +92,7 @@
         }
         .labels span:last-child { text-align: right; }
 
+        /* MATRIX */
         #matrix { flex: 1 1 auto; display: flex; flex-direction: column; overflow: hidden; }
 
         .row {
@@ -105,6 +109,7 @@
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
         .animate-scroll { animation: marquee 14s linear infinite; }
 
+        /* ZEIT & STATUS STYLES */
         .time-cell { 
             text-align: right; font-variant-numeric: tabular-nums; 
             display: flex; flex-direction: column; justify-content: center; align-items: flex-end;
@@ -112,10 +117,12 @@
         
         .sofort { text-transform: lowercase; font-size: 0.85em; animation: blink 1s steps(2, start) infinite; }
         
+        /* Styles für Ausfälle */
         .row.cancelled { color: var(--led-red); }
         .row.cancelled .dest-cell { text-decoration: line-through; opacity: 0.7; }
         .cancelled-msg { font-size: 0.6em; text-transform: uppercase; animation: blink-red 2s infinite; }
 
+        /* Styles für Verspätung */
         .delay-info { 
             font-size: 0.35em; font-family: 'Inter', sans-serif; font-weight: bold;
             color: var(--led-red); margin-bottom: -5px; display: block;
@@ -129,7 +136,7 @@
 <body>
 
     <div id="setup-screen">
-        <h2 style="margin-bottom: 20px;">DFI Simulator Pro</h2>
+        <h2 style="margin-bottom: 20px;">StatusAnzeige für koveb / VRM</h2>
         <div class="input-group"><input type="text" id="city-input" placeholder="Stadt"></div>
         <div class="input-group"><input type="text" id="stop-input" placeholder="Haltestelle"></div>
         <button id="start-btn">Anzeige starten</button>
@@ -156,11 +163,17 @@
 
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch(err => console.log(err.message));
+            document.documentElement.requestFullscreen().catch(err => alert(err.message));
         } else {
             document.exitFullscreen();
         }
     }
+
+    document.addEventListener('fullscreenchange', () => {
+        const btn = document.getElementById('fs-icon');
+        btn.style.display = document.fullscreenElement ? 'none' : 'block';
+        renderFrame();
+    });
 
     async function requestWakeLock() {
         if ('wakeLock' in navigator) {
@@ -169,17 +182,13 @@
     }
 
     document.getElementById('start-btn').onclick = async () => {
-        const city = document.getElementById('city-input').value.trim();
-        const stop = document.getElementById('stop-input').value.trim();
-        if(!city || !stop) return alert("Bitte Stadt und Haltestelle eingeben!");
-
+        const city = document.getElementById('city-input').value;
+        const stop = document.getElementById('stop-input').value;
         const query = `${city} ${stop}`;
         try {
             const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(query)}&results=1`);
-            if (!res.ok) throw new Error("Server-Antwort fehlerhaft");
             const data = await res.json();
-            
-            if(!data || data.length === 0) return alert("Haltestelle nicht gefunden!");
+            if(!data[0]) return alert("Haltestelle nicht gefunden!");
             
             stationID = data[0].id;
             document.getElementById('station-title').innerText = data[0].name;
@@ -188,9 +197,7 @@
             
             requestWakeLock();
             startEngine();
-        } catch(e) { 
-            alert("Verbindungsfehler zur API: " + e.message); 
-        }
+        } catch(e) { alert("Verbindungsfehler!"); }
     };
 
     function startEngine() {
@@ -206,17 +213,31 @@
         const now = new Date();
         const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         const clockEl = document.getElementById('current-time');
-        if (clockEl && clockEl.innerText !== timeStr) clockEl.innerText = timeStr;
+        if (clockEl && clockEl.innerText !== timeStr) {
+            clockEl.innerText = timeStr;
+        }
+    }
+
+    function sortData() {
+        const now = Date.now();
+        busData.sort((a, b) => {
+            const aIsSofort = !a.cancelled && (a.sofortSince || (a.time - now <= 0));
+            const bIsSofort = !b.cancelled && (b.sofortSince || (b.time - now <= 0));
+
+            if (aIsSofort && !bIsSofort) return -1; 
+            if (!aIsSofort && bIsSofort) return 1;
+            
+            return a.time - b.time;
+        });
     }
 
     async function updateData() {
         if(!stationID) return;
         try {
             const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=20&duration=60&remarks=true`);
-            if (!res.ok) return; // Silent fail bei Hintergrund-Updates
             const data = await res.json();
             
-            const newBusData = data.departures.map(dep => {
+            busData = data.departures.map(dep => {
                 const existing = busData.find(b => b.tripId === dep.tripId);
                 
                 let hints = "";
@@ -225,50 +246,44 @@
                     if(txt) hints = " +++ " + txt;
                 }
 
+                const delaySec = dep.delay || 0;
+
                 return {
-                    tripId: dep.tripId || (dep.line.name + dep.direction + (dep.when || dep.plannedWhen)),
+                    tripId: dep.tripId || (dep.line.name + dep.direction + dep.when),
                     line: dep.line.name,
                     dest: dep.direction + hints, 
                     time: new Date(dep.when || dep.plannedWhen),
                     cancelled: dep.cancelled || false, 
-                    delay: dep.delay || 0,
+                    delay: delaySec,
                     sofortSince: existing ? existing.sofortSince : null
                 };
             });
             
-            busData = newBusData;
-            processLogic(); 
-        } catch(e) {
-            console.error("Update fehlgeschlagen:", e);
-        }
+            sortData();
+            renderFrame();
+        } catch(e) {}
     }
 
     function processLogic() {
         const now = Date.now();
-
-        busData.forEach(bus => {
-            if (bus.cancelled || bus.sofortSince) return;
-            const timeDiff = bus.time - now;
-            // Starte 20s-Timer sobald < 60s Restzeit
-            if (timeDiff <= 60000) {
-                 bus.sofortSince = now;
-            }
-        });
         
         busData = busData.filter(bus => {
-            if (bus.cancelled) return (bus.time - now) > -60000; 
-            if (bus.sofortSince) return (now - bus.sofortSince) < 20000;
+            const timeDiff = bus.time - now;
+            
+            if (timeDiff <= 0) {
+                if (bus.cancelled) {
+                    return timeDiff > -60000; 
+                } else {
+                    if (!bus.sofortSince) bus.sofortSince = now;
+                    return (now - bus.sofortSince) <= 20000;
+                }
+            }
             return true;
         });
 
-        busData.sort((a, b) => {
-            if (a.sofortSince && !b.sofortSince) return -1;
-            if (!a.sofortSince && b.sofortSince) return 1;
-            return a.time - b.time;
-        });
-
+        sortData();
         renderFrame();
-        updateClocks(); 
+        updateClocks();
     }
 
     function renderFrame() {
@@ -285,11 +300,18 @@
         if (list.length === 0 && stationID) {
             if (container.dataset.ids === "none") return;
             container.dataset.ids = "none";
-            container.innerHTML = `<div class="row"><div class="line-cell"></div><div class="dest-cell">Keine Fahrten mehr für heute.</div><div class="time-cell"></div></div>`;
+            container.innerHTML = `
+                <div class="row">
+                    <div class="line-cell"></div>
+                    <div class="dest-cell">Keine Fahrten mehr für heute.</div>
+                    <div class="time-cell"></div>
+                </div>
+            `;
             return;
         }
 
-        const ids = list.map(b => b.tripId + b.cancelled).join('|') + maxRows;
+        const ids = list.map(b => b.tripId + b.cancelled + b.delay).join('|') + maxRows;
+        
         if (container.dataset.ids === ids) return;
         container.dataset.ids = ids;
 
@@ -297,6 +319,7 @@
         list.forEach((bus, i) => {
             const row = document.createElement('div');
             row.className = `row ${bus.cancelled ? 'cancelled' : ''}`;
+            
             row.innerHTML = `
                 <div class="line-cell">${bus.line}</div>
                 <div class="dest-cell" id="c-${i}"><span class="marquee-content" id="m-${i}">${bus.dest}</span></div>
@@ -319,23 +342,40 @@
     function updateClocks() {
         const now = Date.now();
         const rows = document.querySelectorAll('.time-cell');
+        if (busData.length === 0) return;
         
         busData.slice(0, rows.length).forEach((bus, i) => {
             const el = document.getElementById(`t-${i}`);
             if(!el) return;
 
             let html = '';
+
             if (bus.cancelled) {
                 html = '<span class="cancelled-msg">Entfällt</span>';
             } else {
                 const diffMin = Math.floor((bus.time - now) / 60000);
-                if (bus.sofortSince || diffMin <= 0) {
+                const isSofort = (bus.sofortSince || diffMin <= 0);
+
+                if (isSofort) {
                     html = '<span class="sofort">sofort</span>';
                 } else {
-                    let delayHtml = bus.delay > 60 ? `<span class="delay-info">+ ${Math.floor(bus.delay/60)}</span>` : '';
-                    html = diffMin < 20 ? `${delayHtml}${diffMin} Min` : `${delayHtml}${bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'})}`;
+                    let delayHtml = '';
+                    if (bus.delay > 60) {
+                        const delayMin = Math.floor(bus.delay / 60);
+                        delayHtml = `<span class="delay-info">+ ${delayMin}</span>`;
+                    } else if (bus.delay < -60) {
+                         delayHtml = `<span class="delay-info">${Math.ceil(bus.delay/60)}</span>`;
+                    }
+
+                    if (diffMin < 20) {
+                        html = `${delayHtml}${diffMin} Min`;
+                    } else {
+                        const timeStr = bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+                        html = `${delayHtml}${timeStr}`;
+                    }
                 }
             }
+            
             if(el.innerHTML !== html) el.innerHTML = html;
         });
     }
