@@ -56,10 +56,30 @@
         /* KOPFZEILE */
         .header-area { flex: 0 0 auto; padding: 2vh 0 1vh 0; }
         
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5vh;
+        }
+
         .station-name { 
             font-family: 'Inter', sans-serif; 
             font-size: clamp(26px, 5.5vh, 55px); 
-            color: #eee; font-weight: 700; margin: 0 0 0.5vh 0; 
+            color: #eee; font-weight: 700; margin: 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            flex: 1;
+        }
+
+        /* UHR IN PIXEL-OPTIK */
+        #current-time {
+            font-family: 'Doto', sans-serif;
+            font-variation-settings: "ROND" 100;
+            font-size: clamp(24px, 5vh, 50px);
+            color: var(--led); /* Gleiche Farbe wie die Abfahrten */
+            font-weight: 900;
+            margin-left: 20px;
+            letter-spacing: 2px;
         }
         
         .labels {
@@ -126,7 +146,10 @@
             <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
         </div>
         <div class="header-area">
-            <p class="station-name" id="station-title">Lade...</p>
+            <div class="header-top">
+                <p class="station-name" id="station-title">Lade...</p>
+                <div id="current-time">00:00</div>
+            </div>
             <div class="labels"><span>Linie</span><span>Ziel</span><span>Abfahrt</span></div>
         </div>
         <div id="matrix"></div>
@@ -178,9 +201,20 @@
 
     function startEngine() {
         updateData();
+        updateHeaderClock();
         setInterval(updateData, 30000);
         setInterval(processLogic, 1000);
+        setInterval(updateHeaderClock, 1000);
         window.addEventListener('resize', renderFrame);
+    }
+
+    function updateHeaderClock() {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const clockEl = document.getElementById('current-time');
+        if (clockEl && clockEl.innerText !== timeStr) {
+            clockEl.innerText = timeStr;
+        }
     }
 
     function sortData() {
@@ -262,7 +296,6 @@
         
         const list = busData.slice(0, Math.max(1, maxRows));
         
-        // Logik für "Keine Fahrten mehr"
         if (list.length === 0 && stationID) {
             if (container.dataset.ids === "none") return;
             container.dataset.ids = "none";
@@ -308,7 +341,7 @@
     function updateClocks() {
         const now = Date.now();
         const rows = document.querySelectorAll('.time-cell');
-        if (busData.length === 0) return; // Nichts zu tun wenn keine Daten
+        if (busData.length === 0) return;
         
         busData.slice(0, rows.length).forEach((bus, i) => {
             const el = document.getElementById(`t-${i}`);
