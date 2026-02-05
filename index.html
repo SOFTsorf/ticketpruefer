@@ -2,8 +2,8 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Abfahrt Zentralplatz Koblenz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DFI Koblenz Zentralplatz</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,227 +11,268 @@
 
     <style>
         :root {
-            --case-color: #4a4d52; /* Dunkelgrau wie das Gehäuse */
-            --led-color: #ffaa00;   /* Bernstein/Gelb wie auf dem Foto */
-            --led-dim: #3a2a00;     /* Farbe für inaktive Pixel (Hintergrund) - optional */
-            --bg-matrix: #1a1a1a;   /* Der schwarze Hintergrund der Anzeige */
+            --case-bg: #4a4d52;      /* Die Farbe des grauen Kastens */
+            --screen-bg: #181818;    /* Der fast schwarze Hintergrund der Anzeige */
+            --led-on: #ffaa00;       /* Die Farbe der leuchtenden Punkte */
+            --text-static: #d0d0d0;  /* Farbe für "Linie/Ziel/Abfahrt" */
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
             background-color: #f0f0f0;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: center; /* Zentriert vertikal */
             min-height: 100vh;
             margin: 0;
             font-family: 'Inter', sans-serif;
+            padding: 10px;
         }
 
-        /* Das Gehäuse der Anzeige */
-        .bus-display-case {
-            background-color: var(--case-color);
-            padding: 20px 30px 40px 30px;
-            border-radius: 15px;
+        /* Das Gehäuse */
+        .dfi-housing {
+            background-color: var(--case-bg);
+            padding: 15px 20px 30px 20px;
+            border-radius: 12px;
             width: 100%;
-            max-width: 600px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            max-width: 500px; /* Breite wie eine echte Anzeige */
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
             position: relative;
         }
 
-        /* Die statische Überschrift (Nicht Doto, wie gewünscht) */
-        .station-name {
-            color: #ccc;
-            font-size: 2.2rem;
-            font-weight: 500;
-            margin-bottom: 5px;
+        /* Überschrift: Zentralplatz */
+        .station-header {
+            color: #e0e0e0;
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 15px;
             letter-spacing: 0.5px;
+            padding-left: 5px;
         }
 
-        /* Spaltenüberschriften */
-        .labels {
+        /* Kopfzeile: Linie Ziel Abfahrt */
+        .column-headers {
             display: grid;
-            grid-template-columns: 1.5fr 4fr 1.5fr; /* Rasterung */
-            color: #aaa;
-            font-size: 0.9rem;
-            margin-bottom: 5px;
-            padding: 0 10px;
+            grid-template-columns: 1.2fr 4fr 1.5fr;
+            color: var(--text-static);
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+            padding: 0 5px;
         }
 
-        .labels span:last-child {
+        .column-headers span:last-child {
             text-align: right;
         }
 
-        /* Der schwarze Bereich der LED Anzeige */
-        .matrix-screen {
-            background-color: var(--bg-matrix);
-            padding: 15px;
+        /* Der Bildschirmbereich */
+        .matrix-display {
+            background-color: var(--screen-bg);
+            padding: 15px 10px;
             border-radius: 4px;
-            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
-            min-height: 200px;
-        }
-
-        /* Die eigentlichen Datenzeilen */
-        .departure-row {
-            display: grid;
-            grid-template-columns: 1.5fr 4fr 1.5fr;
-            margin-bottom: 8px;
-            align-items: baseline;
-        }
-
-        /* Hier wird die Doto Schriftart angewendet */
-        .led-text {
-            font-family: 'Doto', sans-serif;
-            font-weight: 800; /* Dicke Schrift */
-            font-variation-settings: "ROND" 100; /* Macht die Pixel rund */
-            color: var(--led-color);
-            font-size: 1.6rem;
-            line-height: 1.2;
-            text-transform: uppercase;
-            
-            /* Leichter Leuchteffekt für Realismus */
-            text-shadow: 0 0 4px rgba(255, 170, 0, 0.4);
-        }
-
-        .line-number {
-            text-align: left;
-        }
-
-        .destination {
-            white-space: nowrap;
+            box-shadow: inset 0 3px 15px rgba(0,0,0,0.7);
+            min-height: 220px;
+            position: relative;
             overflow: hidden;
-            text-overflow: ellipsis; /* Pünktchen wenn zu lang */
+        }
+
+        /* Zeilen in der Matrix */
+        .matrix-row {
+            display: grid;
+            grid-template-columns: 1.2fr 4fr 1.5fr;
+            margin-bottom: 12px; /* Abstand zwischen Bussen */
+            align-items: baseline;
+            
+            /* HIER passiert die Magie für den LED Look: */
+            font-family: 'Doto', sans-serif;
+            font-weight: 800;
+            font-variation-settings: "ROND" 100; /* Runde Pixel */
+            color: var(--led-on);
+            font-size: 1.4rem; /* Schriftgröße der LEDs */
+            line-height: 1.1;
+            text-transform: uppercase;
+            text-shadow: 0 0 5px rgba(255, 170, 0, 0.5); /* Leuchten */
+        }
+
+        .line { text-align: left; }
+        
+        .dest { 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
             padding-right: 10px;
         }
-
-        .time {
-            text-align: right;
+        
+        .time { 
+            text-align: right; 
         }
 
-        /* Animation beim Laden */
+        /* Blink-Effekt für "sofort" */
         .blink {
-            animation: blinker 1s linear infinite;
+            animation: blinker 1.5s steps(2, start) infinite;
         }
 
         @keyframes blinker {
-            50% { opacity: 0; }
+            to { visibility: hidden; }
         }
 
-        /* Kleiner Hinweis unten */
-        .status-bar {
-            margin-top: 10px;
-            font-size: 0.7rem;
-            color: #777;
-            text-align: right;
+        /* Lade- / Fehlermeldungen */
+        .status-msg {
+            font-family: 'Doto', sans-serif;
+            font-weight: 800;
+            font-variation-settings: "ROND" 100;
+            color: var(--led-on);
+            text-align: center;
+            margin-top: 60px;
+            font-size: 1.2rem;
+            text-transform: uppercase;
         }
+
+        .error-msg {
+            color: #ff4444; /* Rot bei Fehler */
+            text-shadow: none;
+        }
+
     </style>
 </head>
 <body>
 
-    <div class="bus-display-case">
-        <div class="station-name">Zentralplatz</div>
+    <div class="dfi-housing">
+        <div class="station-header">Zentralplatz</div>
         
-        <div class="labels">
+        <div class="column-headers">
             <span>Linie</span>
             <span>Ziel</span>
             <span>Abfahrt</span>
         </div>
 
-        <div class="matrix-screen" id="board">
-            <div class="departure-row led-text" style="justify-content: center;">
-                <span class="blink">LADE DATEN...</span>
-            </div>
+        <div class="matrix-display" id="display">
+            <div class="status-msg blink">Suche Verbindung...</div>
         </div>
-
-        <div class="status-bar" id="status">Verbinde mit Live-API...</div>
     </div>
 
     <script>
-        // Station ID für Koblenz Zentralplatz/Forum (DB/VRM ID)
-        // Sollte diese ID nicht stimmen, kann man sie über die API suchen
-        const STATION_ID = '468263'; 
+        // Wir suchen zuerst dynamisch nach der Station, das ist sicherer
+        const STATION_NAME = "Koblenz Zentralplatz Forum";
+        let stationID = null;
 
-        async function fetchDepartures() {
-            const board = document.getElementById('board');
-            const status = document.getElementById('status');
+        const display = document.getElementById('display');
 
+        async function init() {
             try {
-                // Nutzung der offenen Transport API (Wrapper für DB Hafas)
-                const response = await fetch(`https://v6.db.transport.rest/stops/${STATION_ID}/departures?results=6&duration=60`);
-                
-                if (!response.ok) throw new Error("API Fehler");
-
-                const data = await response.json();
-                const departures = data.departures;
-
-                // Board leeren
-                board.innerHTML = '';
-
-                if (departures.length === 0) {
-                    board.innerHTML = '<div class="departure-row led-text"><span>KEINE BUSSE</span></div>';
-                    return;
-                }
-
-                // Durch die Ergebnisse loopen und Zeilen bauen
-                departures.forEach(dep => {
-                    // Zeit berechnen
-                    const scheduledTime = new Date(dep.when || dep.plannedWhen);
-                    const now = new Date();
-                    const diffMs = scheduledTime - now;
-                    const diffMins = Math.round(diffMs / 60000);
-
-                    // Anzeige formatieren (Minuten oder Uhrzeit)
-                    // Wie auf Bild 1: Wenn < 20 min, zeige Minuten, sonst Uhrzeit (oder gemischt)
-                    // Das Foto zeigt "8 Min" und Uhrzeiten. Wir simulieren das:
+                // 1. Station ID suchen (verhindert falschen Code)
+                if (!stationID) {
+                    const searchResp = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(STATION_NAME)}&results=1`);
+                    const searchData = await searchResp.json();
                     
-                    let timeDisplay;
-                    if (diffMins <= 0) {
-                        timeDisplay = "0 Min"; // Oder blinkend
-                    } else if (diffMins < 10) {
-                        timeDisplay = `${diffMins} Min`;
+                    if (searchData && searchData.length > 0) {
+                        stationID = searchData[0].id;
+                        console.log("Station ID gefunden:", stationID);
                     } else {
-                        // Uhrzeit formatieren HH:MM
-                        const hours = scheduledTime.getHours().toString().padStart(2, '0');
-                        const minutes = scheduledTime.getMinutes().toString().padStart(2, '0');
-                        timeDisplay = `${hours}:${minutes}`;
+                        throw new Error("Station nicht gefunden");
                     }
-
-                    // Linie und Ziel bereinigen
-                    const line = dep.line.name || '?';
-                    let dest = dep.direction || 'Unbekannt';
-                    
-                    // Zu lange Ziele kürzen für bessere Optik
-                    if (dest.length > 15) {
-                        // Optional: Logik zum Kürzen
-                    }
-
-                    // HTML Zeile erstellen
-                    const row = document.createElement('div');
-                    row.className = 'departure-row led-text';
-                    row.innerHTML = `
-                        <span class="line-number">${line}</span>
-                        <span class="destination">${dest}</span>
-                        <span class="time">${timeDisplay}</span>
-                    `;
-                    board.appendChild(row);
-                });
-
-                status.innerText = 'Live aktualisiert: ' + new Date().toLocaleTimeString();
-
-            } catch (error) {
-                console.error(error);
-                // Wenn es schiefgeht, behalte alte Daten oder zeige Fehler
-                if(board.innerText.includes("LADE")) {
-                    board.innerHTML = '<div class="departure-row led-text" style="color:red">FEHLER</div>';
                 }
-                status.innerText = 'Verbindungsfehler - versuche erneut...';
+
+                updateDepartures();
+                // Aktualisiere alle 30 Sekunden
+                setInterval(updateDepartures, 30000);
+
+            } catch (e) {
+                showError("Verbindungsfehler");
+                // Versuche es in 5 Sekunden nochmal
+                setTimeout(init, 5000);
             }
         }
 
-        // Initialer Aufruf
-        fetchDepartures();
+        async function updateDepartures() {
+            if (!stationID) return;
 
-        // Alle 60 Sekunden aktualisieren
-        setInterval(fetchDepartures, 60000);
+            try {
+                // 2. Abfahrten laden
+                const resp = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=6&duration=60`);
+                if (!resp.ok) throw new Error("API Fehler");
+                
+                const data = await resp.json();
+                renderBoard(data.departures);
+
+            } catch (e) {
+                console.error(e);
+                // Wenn schon Daten da sind, nichts tun (besser alte Daten als "Fehler")
+                if (display.innerHTML.includes("Suche")) {
+                    showError("Keine Daten");
+                }
+            }
+        }
+
+        function renderBoard(departures) {
+            display.innerHTML = ''; // Leeren
+
+            if (!departures || departures.length === 0) {
+                display.innerHTML = '<div class="status-msg">Kein Betrieb</div>';
+                return;
+            }
+
+            const now = new Date();
+
+            departures.forEach(dep => {
+                // Zeit berechnen
+                const realTime = dep.when || dep.plannedWhen;
+                const dateObj = new Date(realTime);
+                const diffMs = dateObj - now;
+                const minutes = Math.floor(diffMs / 60000);
+
+                // LOGIK: "sofort" oder Zeit
+                let timeString = "";
+                let isImmediate = false;
+
+                if (minutes <= 1) { 
+                    // Wenn weniger als 1 Minute
+                    timeString = "sofort";
+                    isImmediate = true;
+                } else if (minutes < 20) {
+                    // Bis 20 Min zeigen wir Minuten
+                    timeString = minutes + " Min";
+                } else {
+                    // Danach Uhrzeit (HH:MM)
+                    const h = dateObj.getHours().toString().padStart(2, '0');
+                    const m = dateObj.getMinutes().toString().padStart(2, '0');
+                    timeString = h + ":" + m;
+                }
+
+                // Linie und Ziel
+                let line = dep.line.name || "?";
+                let dest = dep.direction || "Unbekannt";
+
+                // Ziel kürzen, falls extrem lang (damit es ins Layout passt)
+                if (dest.length > 18) {
+                    dest = dest.substring(0, 16) + ".";
+                }
+
+                // HTML bauen
+                const row = document.createElement('div');
+                row.className = 'matrix-row';
+                
+                // Falls "sofort", fügen wir eventuell eine Blink-Klasse hinzu?
+                // Echte Anzeigen blinken oft bei "sofort" nicht, aber wenn du willst:
+                // if (isImmediate) timeString = `<span class="">${timeString}</span>`;
+
+                row.innerHTML = `
+                    <span class="line">${line}</span>
+                    <span class="dest">${dest}</span>
+                    <span class="time">${timeString}</span>
+                `;
+                display.appendChild(row);
+            });
+        }
+
+        function showError(msg) {
+            display.innerHTML = `<div class="status-msg error-msg">${msg}</div>`;
+        }
+
+        // Starten
+        init();
     </script>
 </body>
 </html>
