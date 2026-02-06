@@ -12,7 +12,8 @@
     <style>
         :root {
             --led: #ffaa00;     /* Standard Orange */
-            --led-red: #ff3333; /* Alarm/Ausfall Rot */
+            --led-red: #ff3333; /* Alarm/Ausfall/Verspätung Rot */
+            --led-green: #00ff44; /* Verfrühung Grün */
             --bg: #000;
             --col-line: 20vw; 
             --col-time: 25vw;
@@ -77,7 +78,7 @@
             font-family: 'Doto', sans-serif;
             font-variation-settings: "ROND" 100;
             font-size: clamp(24px, 5vh, 50px);
-            color: var(--led); /* Gleiche Farbe wie die Abfahrten */
+            color: var(--led); 
             font-weight: 900;
             margin-left: 20px;
             letter-spacing: 2px;
@@ -117,16 +118,14 @@
         
         .sofort { text-transform: lowercase; font-size: 0.85em; animation: blink 1s steps(2, start) infinite; }
         
+        /* Status Farben */
+        .is-late { color: var(--led-red); }
+        .is-early { color: var(--led-green); }
+
         /* Styles für Ausfälle */
         .row.cancelled { color: var(--led-red); }
         .row.cancelled .dest-cell { text-decoration: line-through; opacity: 0.7; }
         .cancelled-msg { font-size: 0.6em; text-transform: uppercase; animation: blink-red 2s infinite; }
-
-        /* Styles für Verspätung */
-        .delay-info { 
-            font-size: 0.35em; font-family: 'Inter', sans-serif; font-weight: bold;
-            color: var(--led-red); margin-bottom: -5px; display: block;
-        }
 
         @keyframes blink { to { visibility: hidden; } }
         @keyframes blink-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
@@ -349,6 +348,15 @@
             if(!el) return;
 
             let html = '';
+            let statusClass = '';
+
+            // Bestimmung der Farbklasse basierend auf der Verspätung
+            // > 60 Sek zu spät -> Rot | < -60 Sek zu früh -> Grün
+            if (bus.delay > 60) {
+                statusClass = 'is-late';
+            } else if (bus.delay < -60) {
+                statusClass = 'is-early';
+            }
 
             if (bus.cancelled) {
                 html = '<span class="cancelled-msg">Entfällt</span>';
@@ -357,21 +365,13 @@
                 const isSofort = (bus.sofortSince || diffMin <= 0);
 
                 if (isSofort) {
-                    html = '<span class="sofort">sofort</span>';
+                    html = `<span class="sofort ${statusClass}">sofort</span>`;
                 } else {
-                    let delayHtml = '';
-                    if (bus.delay > 60) {
-                        const delayMin = Math.floor(bus.delay / 60);
-                        delayHtml = `<span class="delay-info">+ ${delayMin}</span>`;
-                    } else if (bus.delay < -60) {
-                         delayHtml = `<span class="delay-info">${Math.ceil(bus.delay/60)}</span>`;
-                    }
-
                     if (diffMin < 20) {
-                        html = `${delayHtml}${diffMin} Min`;
+                        html = `<span class="${statusClass}">${diffMin} Min</span>`;
                     } else {
                         const timeStr = bus.time.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
-                        html = `${delayHtml}${timeStr}`;
+                        html = `<span class="${statusClass}">${timeStr}</span>`;
                     }
                 }
             }
