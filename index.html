@@ -174,11 +174,27 @@
         renderFrame();
     });
 
+    // VERBESSERTER WAKE LOCK (Bildschirm anlassen)
     async function requestWakeLock() {
         if ('wakeLock' in navigator) {
-            try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+            try { 
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log("Wake Lock ist aktiv.");
+                wakeLock.addEventListener('release', () => {
+                    console.log("Wake Lock wurde freigegeben.");
+                });
+            } catch (err) {
+                console.error(`Wake Lock Fehler: ${err.name}, ${err.message}`);
+            }
         }
     }
+
+    // Wake Lock wiederherstellen, wenn die Seite wieder sichtbar wird
+    document.addEventListener('visibilitychange', async () => {
+        if (wakeLock !== null && document.visibilityState === 'visible') {
+            await requestWakeLock();
+        }
+    });
 
     document.getElementById('start-btn').onclick = async () => {
         const city = document.getElementById('city-input').value;
@@ -351,7 +367,6 @@
             let statusClass = '';
 
             // Bestimmung der Farbklasse basierend auf der Verspätung
-            // > 60 Sek zu spät -> Rot | < -60 Sek zu früh -> Grün
             if (bus.delay > 60) {
                 statusClass = 'is-late';
             } else if (bus.delay < -60) {
