@@ -159,6 +159,14 @@
     let stationID = null;
     let busData = [];
     let wakeLock = null;
+    
+    // Verschiedene API-Anbieter für Redundanz
+    const API_PROVIDERS = [
+        "https://v6.db.transport.rest",
+        "https://v6.vbb.transport.rest",
+        "https://v6.hvv.transport.rest"
+    ];
+    let activeProvider = API_PROVIDERS[0];
 
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
@@ -174,22 +182,15 @@
         renderFrame();
     });
 
-    // VERBESSERTER WAKE LOCK (Bildschirm anlassen)
     async function requestWakeLock() {
         if ('wakeLock' in navigator) {
             try { 
                 wakeLock = await navigator.wakeLock.request('screen');
-                console.log("Wake Lock ist aktiv.");
-                wakeLock.addEventListener('release', () => {
-                    console.log("Wake Lock wurde freigegeben.");
-                });
-            } catch (err) {
-                console.error(`Wake Lock Fehler: ${err.name}, ${err.message}`);
-            }
+                console.log("Wake Lock aktiv.");
+            } catch (err) {}
         }
     }
 
-    // Wake Lock wiederherstellen, wenn die Seite wieder sichtbar wird
     document.addEventListener('visibilitychange', async () => {
         if (wakeLock !== null && document.visibilityState === 'visible') {
             await requestWakeLock();
@@ -200,19 +201,35 @@
         const city = document.getElementById('city-input').value;
         const stop = document.getElementById('stop-input').value;
         const query = `${city} ${stop}`;
-        try {
-            const res = await fetch(`https://v6.db.transport.rest/locations?query=${encodeURIComponent(query)}&results=1`);
-            const data = await res.json();
-            if(!data[0]) return alert("Haltestelle nicht gefunden!");
-            
-            stationID = data[0].id;
-            document.getElementById('station-title').innerText = data[0].name;
+        
+        let found = false;
+        
+        // Versuche die Haltestelle bei verschiedenen Anbietern zu finden
+        for (const provider of API_PROVIDERS) {
+            try {
+                const res = await fetch(`${provider}/locations?query=${encodeURIComponent(query)}&results=1`);
+                const data = await res.json();
+                
+                if (data && data[0]) {
+                    stationID = data[0].id;
+                    activeProvider = provider;
+                    document.getElementById('station-title').innerText = data[0].name;
+                    found = true;
+                    break;
+                }
+            } catch (e) {
+                console.warn(`Provider ${provider} fehlgeschlagen, versuche nächsten...`);
+            }
+        }
+
+        if (found) {
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('display-screen').style.display = 'flex';
-            
             requestWakeLock();
             startEngine();
-        } catch(e) { alert("Verbindungsfehler!"); }
+        } else {
+            alert("Haltestelle nicht gefunden oder alle Anbieter offline!");
+        }
     };
 
     function startEngine() {
@@ -238,10 +255,8 @@
         busData.sort((a, b) => {
             const aIsSofort = !a.cancelled && (a.sofortSince || (a.time - now <= 0));
             const bIsSofort = !b.cancelled && (b.sofortSince || (b.time - now <= 0));
-
             if (aIsSofort && !bIsSofort) return -1; 
             if (!aIsSofort && bIsSofort) return 1;
-            
             return a.time - b.time;
         });
     }
@@ -249,20 +264,17 @@
     async function updateData() {
         if(!stationID) return;
         try {
-            const res = await fetch(`https://v6.db.transport.rest/stops/${stationID}/departures?results=20&duration=60&remarks=true`);
+            const res = await fetch(`${activeProvider}/stops/${stationID}/departures?results=20&duration=60&remarks=true`);
             const data = await res.json();
             
             busData = data.departures.map(dep => {
                 const existing = busData.find(b => b.tripId === dep.tripId);
-                
                 let hints = "";
                 if(dep.remarks && dep.remarks.length > 0) {
                     const txt = dep.remarks.filter(r => r.type === 'status' || r.type === 'warning').map(r => r.text).join(' +++ ');
                     if(txt) hints = " +++ " + txt;
                 }
-
                 const delaySec = dep.delay || 0;
-
                 return {
                     tripId: dep.tripId || (dep.line.name + dep.direction + dep.when),
                     line: dep.line.name,
@@ -273,18 +285,17 @@
                     sofortSince: existing ? existing.sofortSince : null
                 };
             });
-            
             sortData();
             renderFrame();
-        } catch(e) {}
+        } catch(e) {
+            console.error("Daten-Update fehlgeschlagen.");
+        }
     }
 
     function processLogic() {
         const now = Date.now();
-        
         busData = busData.filter(bus => {
             const timeDiff = bus.time - now;
-            
             if (timeDiff <= 0) {
                 if (bus.cancelled) {
                     return timeDiff > -60000; 
@@ -295,7 +306,6 @@
             }
             return true;
         });
-
         sortData();
         renderFrame();
         updateClocks();
@@ -309,24 +319,16 @@
         const availableHeight = window.innerHeight - headerArea.offsetHeight - 20;
         const rowHeightTarget = window.innerHeight * 0.12; 
         const maxRows = Math.floor(availableHeight / rowHeightTarget);
-        
         const list = busData.slice(0, Math.max(1, maxRows));
         
         if (list.length === 0 && stationID) {
             if (container.dataset.ids === "none") return;
             container.dataset.ids = "none";
-            container.innerHTML = `
-                <div class="row">
-                    <div class="line-cell"></div>
-                    <div class="dest-cell">Keine Fahrten mehr für heute.</div>
-                    <div class="time-cell"></div>
-                </div>
-            `;
+            container.innerHTML = `<div class="row"><div class="line-cell"></div><div class="dest-cell">Keine Fahrten mehr für heute.</div><div class="time-cell"></div></div>`;
             return;
         }
 
         const ids = list.map(b => b.tripId + b.cancelled + b.delay).join('|') + maxRows;
-        
         if (container.dataset.ids === ids) return;
         container.dataset.ids = ids;
 
@@ -334,7 +336,6 @@
         list.forEach((bus, i) => {
             const row = document.createElement('div');
             row.className = `row ${bus.cancelled ? 'cancelled' : ''}`;
-            
             row.innerHTML = `
                 <div class="line-cell">${bus.line}</div>
                 <div class="dest-cell" id="c-${i}"><span class="marquee-content" id="m-${i}">${bus.dest}</span></div>
@@ -362,23 +363,15 @@
         busData.slice(0, rows.length).forEach((bus, i) => {
             const el = document.getElementById(`t-${i}`);
             if(!el) return;
-
             let html = '';
             let statusClass = '';
-
-            // Bestimmung der Farbklasse basierend auf der Verspätung
-            if (bus.delay > 60) {
-                statusClass = 'is-late';
-            } else if (bus.delay < -60) {
-                statusClass = 'is-early';
-            }
+            if (bus.delay > 60) { statusClass = 'is-late'; } else if (bus.delay < -60) { statusClass = 'is-early'; }
 
             if (bus.cancelled) {
                 html = '<span class="cancelled-msg">Entfällt</span>';
             } else {
                 const diffMin = Math.floor((bus.time - now) / 60000);
                 const isSofort = (bus.sofortSince || diffMin <= 0);
-
                 if (isSofort) {
                     html = `<span class="sofort ${statusClass}">sofort</span>`;
                 } else {
@@ -390,7 +383,6 @@
                     }
                 }
             }
-            
             if(el.innerHTML !== html) el.innerHTML = html;
         });
     }
